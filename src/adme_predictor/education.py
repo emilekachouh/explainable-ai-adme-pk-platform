@@ -183,12 +183,39 @@ def explanation_for_level(level: str) -> str:
     return explanation_for_level("Beginner")
 
 
+F_SCENARIO_DISCLAIMER = (
+    "The Caco-2 model does NOT predict human bioavailability F or true PK parameters. "
+    "F depends on permeability, solubility, dissolution, formulation, intestinal/hepatic metabolism, "
+    "transporters, and first-pass extraction — none of which are directly predicted here. "
+    "These F and ka values are user-editable educational scenario assumptions, not model predictions."
+)
+
+F_EDUCATIONAL_NOTE = (
+    "Scenario F is an educational sensitivity assumption, not a model-predicted bioavailability value. "
+    "Use literature F values (if available) for reference and validate experimentally."
+)
+
+F_MISMATCH_THRESHOLD = 0.20
+
+
 def permeability_to_pk_assumptions(high_probability: float) -> dict[str, float]:
-    """Map permeability probability to transparent educational F/ka assumptions."""
+    """Return default educational scenario F/ka assumptions based on Caco-2 probability.
+
+    These are ILLUSTRATIVE STARTING ASSUMPTIONS, not model predictions.
+    The Caco-2 classifier predicts permeability class only.  Human F depends on
+    many additional factors (solubility, metabolism, transporters, formulation,
+    first-pass extraction) that are not captured here.
+
+    The returned dict uses ``scenario_f`` and ``scenario_ka`` to make clear that
+    these are user-editable sensitivity inputs, not validated predictions.
+    """
     probability = min(max(float(high_probability), 0.0), 1.0)
     return {
         "reference_f": 0.80,
         "reference_ka": 1.20,
+        "scenario_f": round(0.30 + 0.65 * probability, 3),
+        "scenario_ka": round(0.20 + 1.60 * probability, 3),
+        # Keep legacy aliases so callers that have not been updated yet still work
         "adjusted_f": round(0.30 + 0.65 * probability, 3),
         "adjusted_ka": round(0.20 + 1.60 * probability, 3),
         "true_cl": 6.0,
@@ -212,7 +239,7 @@ def pk_impact_table(high_probability: float) -> pd.DataFrame:
     rows = []
     for scenario, f_value, ka_value in [
         ("Reference absorption", assumptions["reference_f"], assumptions["reference_ka"]),
-        ("Permeability-adjusted absorption", assumptions["adjusted_f"], assumptions["adjusted_ka"]),
+        ("Sensitivity scenario (educational F/ka assumption)", assumptions["scenario_f"], assumptions["scenario_ka"]),
     ]:
         profile, _ = simulate_pk_profile(
             route="oral",
@@ -259,7 +286,7 @@ def pk_impact_profiles(high_probability: float) -> pd.DataFrame:
     profiles = []
     for scenario, f_value, ka_value in [
         ("Reference absorption", assumptions["reference_f"], assumptions["reference_ka"]),
-        ("Permeability-adjusted absorption", assumptions["adjusted_f"], assumptions["adjusted_ka"]),
+        ("Sensitivity scenario (educational F/ka assumption)", assumptions["scenario_f"], assumptions["scenario_ka"]),
     ]:
         profile, _ = simulate_pk_profile(
             route="oral",
@@ -552,7 +579,7 @@ def multi_drug_pk_comparison(
 
         for scenario, f_val, ka_val in [
             ("reference", assumptions["reference_f"], assumptions["reference_ka"]),
-            ("adjusted", assumptions["adjusted_f"], assumptions["adjusted_ka"]),
+            ("scenario", assumptions["scenario_f"], assumptions["scenario_ka"]),
         ]:
             try:
                 profile, _ = simulate_pk_profile(
@@ -574,7 +601,7 @@ def multi_drug_pk_comparison(
                     ref_tmax = float(nca["tmax"])
                     ref_clf = float(nca["clearance"])
                     ref_profile = profile
-                else:
+                else:  # scenario
                     adj_auc = float(nca["auc_inf"])
                     adj_cmax = float(nca["cmax"])
                     adj_tmax = float(nca["tmax"])
@@ -592,8 +619,10 @@ def multi_drug_pk_comparison(
             {
                 "molecule": name,
                 "probability": round(prob, 3),
-                "suggested_f": assumptions["adjusted_f"],
-                "suggested_ka": assumptions["adjusted_ka"],
+                "scenario_f": assumptions["scenario_f"],
+                "scenario_ka": assumptions["scenario_ka"],
+                "suggested_f": assumptions["scenario_f"],   # legacy alias
+                "suggested_ka": assumptions["scenario_ka"],  # legacy alias
                 "true_cl": assumptions["true_cl"],
                 "ref_auc": ref_auc,
                 "adj_auc": adj_auc,
@@ -728,9 +757,11 @@ def experiment_recommendation(
 # ---------------------------------------------------------------------------
 
 MULTI_DRUG_COMPARISON_DISCLAIMER = (
-    "All curves are educational simulations generated from permeability-mapped F and ka assumptions. "
+    "All curves are educational simulations generated from user-editable F and ka sensitivity assumptions. "
+    "The Caco-2 model does NOT predict human bioavailability F or true PK. "
+    "F depends on permeability, solubility, formulation, metabolism, and transporters. "
     "No observed concentration-time data are bundled. "
-    "True systemic CL is fixed by design; only absorption assumptions change between scenarios. "
+    "True systemic CL is fixed by design; only absorption scenario assumptions change between drugs. "
     "This is hypothesis-generating, not validated human PK."
 )
 
@@ -743,9 +774,11 @@ def build_multi_drug_comparison_report(
     mol_list = ", ".join(str(m) for m in metrics["molecule"].tolist())
     metric_lines = []
     for _, row in metrics.iterrows():
+        scenario_f = row.get("scenario_f", row.get("suggested_f", float("nan")))
+        scenario_ka = row.get("scenario_ka", row.get("suggested_ka", float("nan")))
         metric_lines.append(
             f"| {row['molecule']} | {row['probability']:.3f} | "
-            f"{row['suggested_f']:.3f} | {row['suggested_ka']:.3f} | "
+            f"{scenario_f:.3f} | {scenario_ka:.3f} | "
             f"{row['auc_ratio']:.3f} | {row['cmax_ratio']:.3f} | "
             f"{row['clf_ratio']:.3f} |"
         )
@@ -763,7 +796,7 @@ def build_multi_drug_comparison_report(
             "",
             f"Molecules compared: {mol_list}",
             "",
-            "| Molecule | Probability | Suggested F | Suggested ka | AUC ratio | Cmax ratio | CL/F ratio |",
+            "| Molecule | Probability | Scenario F (educational assumption) | Scenario ka (educational assumption) | AUC sensitivity ratio | Cmax sensitivity ratio | CL/F sensitivity ratio |",
             "|---|---|---|---|---|---|---|",
             *metric_lines,
             "",

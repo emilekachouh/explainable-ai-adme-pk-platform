@@ -85,6 +85,28 @@ def render_molecule_svg(smiles: str, size: tuple[int, int] = (450, 300)) -> str:
     return str(svg)
 
 
+def svg_to_html_page(svg: str, bg_color: str = "white") -> str:
+    """Wrap a raw SVG string in a minimal HTML document for use in st.components.v1.html.
+
+    Without this wrapper, some browser/iframe environments do not render raw SVG
+    text correctly when it begins with an XML declaration.  Embedding it in a
+    proper HTML page ensures consistent rendering on Streamlit Cloud and locally.
+    """
+    svg_clean = svg.replace("<?xml version='1.0' encoding='iso-8859-1'?>", "").strip()
+    return (
+        "<!DOCTYPE html>"
+        "<html>"
+        "<head>"
+        "<style>"
+        f"body{{margin:0;padding:0;background:{bg_color};overflow:hidden;}}"
+        "svg{display:block;max-width:100%;height:auto;}"
+        "</style>"
+        "</head>"
+        f"<body>{svg_clean}</body>"
+        "</html>"
+    )
+
+
 def build_prediction_report(
     smiles: str,
     prediction: dict[str, object],

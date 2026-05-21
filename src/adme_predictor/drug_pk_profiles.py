@@ -555,3 +555,112 @@ DRUG_PK_PROFILES: dict[str, dict] = {
 }
 
 DRUG_PROFILE_NAMES = list(DRUG_PK_PROFILES.keys())
+
+
+# ---------------------------------------------------------------------------
+# Literature F reference values
+# These are SEPARATE from the educational scenario F used in the PK simulator.
+# The Caco-2 model does NOT predict these values.
+# ---------------------------------------------------------------------------
+_F_LITERATURE: dict[str, dict] = {
+    "aspirin": {
+        "f_literature": 0.60,
+        "f_literature_range": "0.50–0.68 (formulation- and endpoint-dependent)",
+        "f_literature_note": (
+            "Aspirin F is highly variable because intact aspirin is rapidly hydrolysed to salicylate "
+            "pre-systemically and in the gut wall. Measured F reflects the intact aspirin fraction, "
+            "not total salicylate. Enteric-coated vs. non-coated formulations differ substantially. "
+            "This illustrates why Caco-2 permeability alone cannot predict F."
+        ),
+    },
+    "caffeine": {
+        "f_literature": 1.00,
+        "f_literature_range": "~1.0 (essentially complete absorption in most subjects)",
+        "f_literature_note": (
+            "Caffeine is generally treated as essentially completely orally bioavailable. "
+            "High passive permeability and high aqueous solubility contribute to near-complete absorption. "
+            "A Caco-2-based educational scenario should not override this known literature value."
+        ),
+    },
+    "ibuprofen": {
+        "f_literature": 0.80,
+        "f_literature_range": "~0.80 (well-absorbed oral NSAID)",
+        "f_literature_note": "High permeability and solubility support near-complete absorption. High protein binding does not affect F directly.",
+    },
+    "metformin": {
+        "f_literature": 0.50,
+        "f_literature_range": "0.40–0.60 (dose- and transporter-dependent)",
+        "f_literature_note": (
+            "Metformin absorption is transporter-mediated (OCT1, PMAT). Passive permeability is low. "
+            "This is the paradigm case where Caco-2 passive permeability alone predicts low absorption "
+            "but the drug is clinically effective because of active transport. "
+            "The Caco-2 scenario F will underestimate the true F."
+        ),
+    },
+    "propranolol": {
+        "f_literature": 0.26,
+        "f_literature_range": "0.20–0.35 (high first-pass extraction)",
+        "f_literature_note": (
+            "High permeability BUT low F due to extensive hepatic first-pass extraction. "
+            "This illustrates that high Caco-2 permeability does not guarantee high F "
+            "when first-pass metabolism is substantial."
+        ),
+    },
+    "atenolol": {
+        "f_literature": 0.50,
+        "f_literature_range": "~0.50 (low permeability, moderate F via paracellular route)",
+        "f_literature_note": "Low passive transcellular permeability; absorption partly via paracellular pathway. Caco-2 may underpredict F.",
+    },
+    "warfarin": {
+        "f_literature": 0.93,
+        "f_literature_range": "~0.90–0.97 (near-complete oral absorption)",
+        "f_literature_note": "High permeability and high protein binding; F is near-complete. CYP2C9 metabolism affects clearance, not F.",
+    },
+    "diazepam": {
+        "f_literature": 1.00,
+        "f_literature_range": "~1.0 (essentially complete absorption)",
+        "f_literature_note": "High lipophilicity and near-complete oral absorption. Long half-life due to high Vd.",
+    },
+    "midazolam": {
+        "f_literature": 0.44,
+        "f_literature_range": "0.30–0.50 (CYP3A4 first-pass extraction)",
+        "f_literature_note": "Classic CYP3A4 probe substrate. High permeability but moderate F due to first-pass intestinal and hepatic CYP3A4.",
+    },
+    "omeprazole": {
+        "f_literature": 0.50,
+        "f_literature_range": "0.35–0.65 (CYP2C19-dependent, enteric coating)",
+        "f_literature_note": "F is highly variable due to CYP2C19 polymorphism and acid-labile prodrug activation.",
+    },
+    "acetaminophen": {
+        "f_literature": 0.88,
+        "f_literature_range": "0.85–0.98 (well-absorbed)",
+        "f_literature_note": "High oral bioavailability; primarily glucuronidation and sulfation at therapeutic doses.",
+    },
+    "morphine": {
+        "f_literature": 0.24,
+        "f_literature_range": "0.20–0.40 (extensive first-pass glucuronidation)",
+        "f_literature_note": "Demonstrates that good permeability does not guarantee high F when first-pass metabolism is extensive.",
+    },
+    "atorvastatin": {
+        "f_literature": 0.12,
+        "f_literature_range": "~0.12 (very low first-pass F)",
+        "f_literature_note": "Very low F despite moderate permeability; CYP3A4 and intestinal first-pass metabolism are the main determinants.",
+    },
+}
+
+# Enrich each profile with literature F data where available
+for _key, _fdata in _F_LITERATURE.items():
+    if _key in DRUG_PK_PROFILES:
+        DRUG_PK_PROFILES[_key].update({
+            "f_literature": _fdata["f_literature"],
+            "f_literature_range": _fdata["f_literature_range"],
+            "f_literature_note": _fdata["f_literature_note"],
+            "profile_type": "literature teaching preset",
+        })
+
+# Ensure all profiles that were not enriched have the profile_type field
+for _key in DRUG_PK_PROFILES:
+    DRUG_PK_PROFILES[_key].setdefault("profile_type", "literature teaching preset")
+    DRUG_PK_PROFILES[_key].setdefault("f_literature", None)
+    DRUG_PK_PROFILES[_key].setdefault("f_literature_range", None)
+    DRUG_PK_PROFILES[_key].setdefault("f_literature_note", "Verify against primary literature before scientific use.")

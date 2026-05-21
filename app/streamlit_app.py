@@ -24,6 +24,9 @@ from adme_predictor.demo_model import (  # noqa: E402
     predict_permeability_class_resilient,
 )
 from adme_predictor.education import (  # noqa: E402
+    F_EDUCATIONAL_NOTE,
+    F_MISMATCH_THRESHOLD,
+    F_SCENARIO_DISCLAIMER,
     HOW_TO_USE_STEPS,
     IVIVE_EXPLANATION,
     IV_ORAL_EXPLANATION,
@@ -63,7 +66,7 @@ from adme_predictor.pk_visualization import (  # noqa: E402
     plot_concentration_time,
     plot_semilog_concentration_time,
 )
-from adme_predictor.reporting import render_molecule_svg  # noqa: E402
+from adme_predictor.reporting import render_molecule_svg, svg_to_html_page  # noqa: E402
 
 
 PK_PRESETS = {
@@ -635,8 +638,8 @@ def _render_decision_summary(
     outside_domain = bool(applicability["outside_applicability_domain"]) if applicability else False
 
     assumptions = permeability_to_pk_assumptions(prob)
-    adj_f = assumptions["adjusted_f"]
-    adj_ka = assumptions["adjusted_ka"]
+    adj_f = assumptions["scenario_f"]
+    adj_ka = assumptions["scenario_ka"]
 
     if len(pk_table) >= 2:
         auc_ratio = float(pk_table.iloc[1]["AUC_ratio_vs_reference"])
@@ -676,11 +679,11 @@ def _render_decision_summary(
         f'<span class="ds-badge {domain_badge}">Domain: {dom_cat}</span>'
         f'<span class="ds-badge">{category}</span>'
         f'<span class="ds-badge">p = {prob:.2f}</span>'
-        f'<span class="ds-badge">F = {adj_f:.2f}</span>'
-        f'<span class="ds-badge">ka = {adj_ka:.2f} h⁻¹</span>'
-        f'<span class="ds-badge">AUC ratio {auc_ratio:.2f}×</span>'
-        f'<span class="ds-badge">Cmax ratio {cmax_ratio:.2f}×</span>'
-        f'<span class="ds-badge">CL/F ratio {clf_ratio:.2f}×</span>'
+        f'<span class="ds-badge">Scenario F = {adj_f:.2f} (assumption)</span>'
+        f'<span class="ds-badge">Scenario ka = {adj_ka:.2f} h⁻¹</span>'
+        f'<span class="ds-badge">AUC sensitivity ratio {auc_ratio:.2f}×</span>'
+        f'<span class="ds-badge">Cmax sensitivity ratio {cmax_ratio:.2f}×</span>'
+        f'<span class="ds-badge">CL/F sensitivity ratio {clf_ratio:.2f}×</span>'
     )
 
     st.markdown(
@@ -841,14 +844,14 @@ def _format_comparison_table(comparison: pd.DataFrame) -> pd.DataFrame:
             "high_probability": "High permeability probability",
             "confidence": "Confidence",
             "applicability_similarity": "Applicability similarity",
-            "suggested_f": "Suggested F",
-            "suggested_ka": "Suggested ka (1/h)",
+            "suggested_f": "Scenario F (educational assumption)",
+            "suggested_ka": "Scenario ka (educational assumption, 1/h)",
         }
     )
     numeric_cols = [
         "MW", "LogP", "TPSA",
         "High permeability probability", "Confidence", "Applicability similarity",
-        "Suggested F", "Suggested ka (1/h)",
+        "Scenario F (educational assumption)", "Scenario ka (1/h)",
     ]
     for col in numeric_cols:
         if col in table:
@@ -970,7 +973,9 @@ def _render_learning_panel() -> None:
 def _render_molecule_structure(smiles: str) -> None:
     svg = _cached_molecule_svg(smiles)
     if svg:
-        components.html(svg, height=315)
+        # Wrap in a full HTML document — raw SVG (starting with <?xml?>) does not
+        # render reliably inside the st.components.v1.html iframe on all browsers.
+        components.html(svg_to_html_page(svg), height=320)
         st.caption("2D molecular structure (RDKit SVG)")
     else:
         try:
@@ -1127,7 +1132,7 @@ def render_adme_screening() -> None:
             "Confidence",
             "Applicability Domain",
             "Explainable AI",
-            "PK Impact",
+            "Absorption Sensitivity",
             "Limits",
         ]
     )
@@ -1308,25 +1313,69 @@ def render_adme_screening() -> None:
             st.caption("Optional saved SHAP figures can be generated offline for deeper model-audit materials. The descriptor driver profile above provides the lightweight XAI view.")
 
     with workflow_tabs[5]:
-        st.subheader("Permeability to PK Impact — Centerpiece Analysis")
+        st.subheader("Absorption Sensitivity Simulator")
         if prediction is None:
-            st.info("Run a permeability prediction first to see PK impact analysis.")
+            st.info("Run a permeability prediction first to see the absorption sensitivity simulator.")
         else:
             probability = float(prediction["high_permeability_probability"])
             assumptions = permeability_to_pk_assumptions(probability)
+
+            # --- Top-of-section scientific disclaimer ---
+            st.warning(
+                "**Scientific boundary:** "
+                + F_SCENARIO_DISCLAIMER
+                + " The F and ka values below are **user-editable educational scenario assumptions** — "
+                "they are illustrative starting points, not model predictions. "
+                "Edit them freely to explore sensitivity."
+            )
+
+            # --- Literature F comparison if drug is known ---
+            _lit_f_profile = None
+            _mol_key_lower = selected_name.lower().replace(" ", "_")
+            if _mol_key_lower in DRUG_PK_PROFILES:
+                _lit_f_profile = DRUG_PK_PROFILES[_mol_key_lower]
+            else:
+                for _k, _p in DRUG_PK_PROFILES.items():
+                    if _p["name"].lower() == selected_name.lower():
+                        _lit_f_profile = _p
+                        break
+
+            if _lit_f_profile and _lit_f_profile.get("f_literature") is not None:
+                _lit_f = float(_lit_f_profile["f_literature"])
+                _scen_f = float(assumptions["scenario_f"])
+                _mismatch = abs(_scen_f - _lit_f)
+                _f_range = _lit_f_profile.get("f_literature_range", f"~{_lit_f:.2f}")
+                _f_note = _lit_f_profile.get("f_literature_note", "")
+
+                _f_col1, _f_col2 = st.columns([1, 1.4])
+                with _f_col1:
+                    st.metric("Literature teaching F", f"{_lit_f:.2f}", help=f"Range: {_f_range}")
+                    st.metric("Default scenario F", f"{_scen_f:.2f}", help="Illustrative starting assumption, not a prediction")
+                with _f_col2:
+                    if _f_note:
+                        st.markdown(_html_card("Literature teaching note", _f_note), unsafe_allow_html=True)
+
+                if _mismatch > F_MISMATCH_THRESHOLD:
+                    st.warning(
+                        f"**F mismatch:** The default scenario F ({_scen_f:.2f}) differs from the literature "
+                        f"teaching F ({_lit_f:.2f}) by {_mismatch:.2f}. This is expected — the app does not "
+                        "predict human bioavailability. F depends on permeability, solubility, formulation, "
+                        "metabolism, transporters, and first-pass extraction. "
+                        "Adjust the scenario F below to match literature values if appropriate."
+                    )
 
             # --- 3-step workflow strip ---
             st.markdown(
                 '<div class="three-step">'
                 '<div class="step-card"><div class="step-num">1</div>'
-                '<div class="step-title">Prediction</div>'
-                '<div class="step-body">Caco-2 permeability class + probability from the ML model</div></div>'
+                '<div class="step-title">Caco-2 Prediction</div>'
+                '<div class="step-body">ML model predicts Caco-2 permeability class and probability</div></div>'
                 '<div class="step-card"><div class="step-num">&#8594;</div>'
-                '<div class="step-title">F / ka Mapping</div>'
-                '<div class="step-body">Probability mapped to adjusted bioavailability (F) and absorption rate (ka)</div></div>'
-                '<div class="step-card"><div class="step-num">2</div>'
-                '<div class="step-title">PK Curve Impact</div>'
-                '<div class="step-body">Compare reference vs permeability-adjusted oral C-t profile and NCA metrics</div></div>'
+                '<div class="step-title">Absorption Hypothesis</div>'
+                '<div class="step-body">Permeability class informs a <em>hypothesis</em> about absorption favorability</div></div>'
+                '<div class="step-card"><div class="step-num">3</div>'
+                '<div class="step-title">Sensitivity Simulation</div>'
+                '<div class="step-body">User edits F and ka assumptions; simulated PK curve shows how exposure changes</div></div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -1347,19 +1396,23 @@ def render_adme_screening() -> None:
             with map_col:
                 st.markdown(
                     _html_card(
-                        "Permeability → F/ka assumption mapping",
-                        f"Probability <strong>{probability:.2f}</strong> &rarr; "
-                        f"Adjusted F = <strong>{assumptions['adjusted_f']:.2f}</strong> &nbsp;|&nbsp; "
-                        f"Adjusted ka = <strong>{assumptions['adjusted_ka']:.2f} h⁻¹</strong>.<br>"
+                        "Default scenario assumption (illustrative, not a prediction)",
+                        f"Caco-2 probability <strong>{probability:.2f}</strong> &rarr; "
+                        f"Default scenario F = <strong>{assumptions['scenario_f']:.2f}</strong> &nbsp;|&nbsp; "
+                        f"Default scenario ka = <strong>{assumptions['scenario_ka']:.2f} h⁻¹</strong>.<br>"
                         f"Reference F = {assumptions['reference_f']:.2f} &nbsp;|&nbsp; "
                         f"Reference ka = {assumptions['reference_ka']:.2f} h⁻¹.<br>"
-                        "Edit parameters below to explore alternative scenarios.",
+                        "<em>Edit the sliders below to change the sensitivity scenario.</em>",
                     ),
                     unsafe_allow_html=True,
                 )
 
             # --- Editable assumption parameters ---
-            st.markdown("#### Editable scenario parameters")
+            st.markdown(
+                "#### User-editable sensitivity scenario parameters",
+                help="These are educational sensitivity inputs. Changing F changes simulated AUC. True CL is fixed unless you edit it.",
+            )
+            st.caption(F_EDUCATIONAL_NOTE)
             _key = str(abs(hash(canonical_smiles)) % 10_000_000)
             pcols = st.columns(7)
             pk_dose = pcols[0].number_input(
@@ -1372,17 +1425,17 @@ def render_adme_screening() -> None:
                 "True CL (L/h)", 0.001, 500.0, float(assumptions["true_cl"]), step=0.5, key=f"pki_cl_{_key}"
             )
             pk_ref_f = pcols[3].slider(
-                "Ref F", 0.01, 1.0, float(assumptions["reference_f"]), step=0.01, key=f"pki_rf_{_key}"
+                "Ref scenario F", 0.01, 1.0, float(assumptions["reference_f"]), step=0.01, key=f"pki_rf_{_key}"
             )
             pk_ref_ka = pcols[4].number_input(
                 "Ref ka (1/h)", 0.001, 20.0, float(assumptions["reference_ka"]),
                 format="%.3f", step=0.1, key=f"pki_rka_{_key}"
             )
             pk_adj_f = pcols[5].slider(
-                "Adj F", 0.01, 1.0, float(assumptions["adjusted_f"]), step=0.01, key=f"pki_af_{_key}"
+                "Scenario F", 0.01, 1.0, float(assumptions["scenario_f"]), step=0.01, key=f"pki_af_{_key}"
             )
             pk_adj_ka = pcols[6].number_input(
-                "Adj ka (1/h)", 0.001, 20.0, float(assumptions["adjusted_ka"]),
+                "Scenario ka (1/h)", 0.001, 20.0, float(assumptions["scenario_ka"]),
                 format="%.3f", step=0.1, key=f"pki_aka_{_key}"
             )
 
@@ -1631,8 +1684,8 @@ def _comparison_rows(selected_labels: list[str]) -> pd.DataFrame:
                 "high_probability": float(prediction["high_permeability_probability"]) if prediction else None,
                 "confidence": float(confidence["confidence_score"]) if confidence else None,
                 "applicability_similarity": float(applicability["nearest_neighbor_similarity"]) if applicability else None,
-                "suggested_f": float(pk_assumptions["adjusted_f"]) if pk_assumptions else None,
-                "suggested_ka": float(pk_assumptions["adjusted_ka"]) if pk_assumptions else None,
+                "suggested_f": float(pk_assumptions["scenario_f"]) if pk_assumptions else None,
+                "suggested_ka": float(pk_assumptions["scenario_ka"]) if pk_assumptions else None,
             }
         )
     return pd.DataFrame(rows)
@@ -1690,7 +1743,7 @@ def render_comparison_mode() -> None:
         outside = comparison.sort_values("applicability_similarity", ascending=True).iloc[0]
         sc[3].metric("Lowest domain similarity", str(outside["molecule"]), help="Most distant from training-set chemistry; treat predictions with extra caution")
     if largest_f is not None:
-        sc[4].metric("Largest suggested F", f"{largest_f['molecule']} ({largest_f['suggested_f']:.2f})", help="Highest permeability-mapped oral bioavailability assumption")
+        sc[4].metric("Largest scenario F (educational assumption)", f"{largest_f['molecule']} ({largest_f['suggested_f']:.2f})", help="Highest permeability-mapped oral bioavailability assumption")
 
     interpretations = comparison_interpretations(comparison)
     st.markdown(_html_card("Beginner interpretation", interpretations["beginner"]), unsafe_allow_html=True)
@@ -1797,27 +1850,27 @@ def render_comparison_mode() -> None:
     with comp_tabs[2]:
         st.markdown('<div class="compare-section-header">C. PK Assumption Comparison</div>', unsafe_allow_html=True)
         st.caption("F and ka are mapped from permeability probability under the educational assumption model. True CL is held constant by design.")
-        pk_cols = ["Molecule", "Predicted class", "High permeability probability", "Suggested F", "Suggested ka (1/h)"]
+        pk_cols = ["Molecule", "Predicted class", "High permeability probability", "Scenario F (educational assumption)", "Scenario ka (1/h)"]
         pk_avail = [c for c in pk_cols if c in display_table.columns]
         st.dataframe(display_table[pk_avail], hide_index=True, use_container_width=True)
         pk_chart_cols = st.columns(2)
         chart_data = comparison.set_index("molecule")
         with pk_chart_cols[0]:
             if "suggested_f" in chart_data and chart_data["suggested_f"].notna().any():
-                st.caption("Suggested F (bioavailability assumption)")
+                st.caption("Scenario F (educational assumption)")
                 st.bar_chart(chart_data[["suggested_f"]])
         with pk_chart_cols[1]:
             if "suggested_ka" in chart_data and chart_data["suggested_ka"].notna().any():
                 st.caption("Suggested ka (absorption rate assumption)")
                 st.bar_chart(chart_data[["suggested_ka"]])
         if largest_f is not None:
-            st.write(f"- Largest suggested F: **{largest_f['molecule']}** ({largest_f['suggested_f']:.2f}) — highest simulated absorption fraction under educational mapping.")
+            st.write(f"- Largest scenario F (educational assumption): **{largest_f['molecule']}** ({largest_f['suggested_f']:.2f}) — highest educational F scenario assumption.")
         if largest_ka is not None:
-            st.write(f"- Largest suggested ka: **{largest_ka['molecule']}** ({largest_ka['suggested_ka']:.2f} h⁻¹) — fastest absorption-rate assumption.")
+            st.write(f"- Largest scenario ka (educational assumption): **{largest_ka['molecule']}** ({largest_ka['suggested_ka']:.2f} h⁻¹) — fastest absorption-rate assumption.")
         st.markdown(
             _html_card(
                 "How to read this table",
-                "Suggested F and ka are derived from the permeability probability using a transparent linear mapping. "
+                "Scenario F and ka are illustrative starting assumptions, NOT model-predicted bioavailability values. "
                 "They are not measured values. A higher F maps to higher simulated AUC and lower apparent CL/F, "
                 "while true CL is unchanged. Higher ka primarily shifts Cmax timing (Tmax) and curve shape.",
             ),
@@ -2297,18 +2350,19 @@ def render_multi_drug_pk_comparison() -> None:
 
     # --- Heatmap-style summary table ---
     st.markdown("#### Exposure ratio summary")
-    display_metrics = metrics[
-        ["molecule", "probability", "suggested_f", "suggested_ka",
-         "auc_ratio", "cmax_ratio", "tmax_shift", "clf_ratio", "true_cl"]
-    ].rename(columns={
+    _scen_f_col = "scenario_f" if "scenario_f" in metrics.columns else "suggested_f"
+    _scen_ka_col = "scenario_ka" if "scenario_ka" in metrics.columns else "suggested_ka"
+    _avail_cols = [c for c in ["molecule", "probability", _scen_f_col, _scen_ka_col,
+         "auc_ratio", "cmax_ratio", "tmax_shift", "clf_ratio", "true_cl"] if c in metrics.columns]
+    display_metrics = metrics[_avail_cols].rename(columns={
         "molecule": "Molecule", "probability": "Probability",
-        "suggested_f": "Adj F", "suggested_ka": "Adj ka (h⁻¹)",
-        "auc_ratio": "AUC ratio", "cmax_ratio": "Cmax ratio",
-        "tmax_shift": "Tmax shift (h)", "clf_ratio": "CL/F ratio",
+        _scen_f_col: "Scenario F (educational assumption)", _scen_ka_col: "Scenario ka (h⁻¹)",
+        "auc_ratio": "AUC sensitivity ratio", "cmax_ratio": "Cmax sensitivity ratio",
+        "tmax_shift": "Tmax shift (h)", "clf_ratio": "CL/F sensitivity ratio",
         "true_cl": "True CL (fixed)",
     })
-    for col in ["Probability", "Adj F", "Adj ka (h⁻¹)", "AUC ratio", "Cmax ratio",
-                "Tmax shift (h)", "CL/F ratio"]:
+    for col in ["Probability", "Scenario F (educational assumption)", "Scenario ka (h⁻¹)",
+                "AUC sensitivity ratio", "Cmax sensitivity ratio", "Tmax shift (h)", "CL/F sensitivity ratio"]:
         if col in display_metrics:
             display_metrics[col] = display_metrics[col].map(
                 lambda v: None if pd.isna(v) else round(float(v), 3)

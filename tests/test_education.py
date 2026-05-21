@@ -60,10 +60,13 @@ def test_equations_include_oral_auc_and_do_not_overclaim():
     assert "validated human PK prediction" not in PK_EQUATIONS_TEXT
 
 
-def test_pk_impact_profiles_include_reference_and_adjusted_curves():
+def test_pk_impact_profiles_include_reference_and_sensitivity_curves():
     profiles = pk_impact_profiles(0.8)
-
-    assert {"Reference absorption", "Permeability-adjusted absorption"} == set(profiles["scenario"])
+    scenarios = set(profiles["scenario"])
+    assert any("Reference" in s for s in scenarios), f"Missing reference scenario in: {scenarios}"
+    assert any("Sensitivity" in s or "scenario" in s.lower() for s in scenarios), (
+        f"Missing sensitivity scenario in: {scenarios}"
+    )
     assert {"time", "concentration", "F", "ka"}.issubset(profiles.columns)
 
 

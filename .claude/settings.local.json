@@ -5,7 +5,14 @@
       "Bash(python3 -m pytest --tb=short -q)",
       "Bash(.venv/bin/pytest.exe --tb=short -q)",
       "Bash(.venv/Scripts/python.exe -m pytest --tb=short -q)",
-      "Bash(.venv/Scripts/python.exe *)"
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(.venv/Scripts/streamlit.exe run *)",
+      "Bash(echo \"Streamlit PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8507/)",
+      "Bash(tasklist.exe)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(awk '{print $5, $NF}')",
+      "Bash(sort -k2)"
     ]
   }
 }

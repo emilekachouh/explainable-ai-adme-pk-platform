@@ -59,8 +59,12 @@ def click_tab(page: Page, name: str) -> None:
 
 
 def navigate(page: Page, label: str) -> None:
-    page.get_by_text(label, exact=True).click(timeout=15000)
-    page.wait_for_timeout(2500)
+    # Try radio button first, then fall back to plain text click
+    try:
+        page.get_by_role("radio", name=re.compile(f"^{re.escape(label)}$")).click(timeout=6000)
+    except Exception:
+        page.get_by_text(label, exact=True).first.click(timeout=15000)
+    page.wait_for_timeout(3500)
 
 
 def expand_if_collapsed(page: Page, label: str) -> None:
@@ -158,8 +162,16 @@ def main() -> None:
 
             navigate(page, "ADME Workbench")
             click_tab(page, "PK Impact")
+            page.wait_for_timeout(1200)
             capture(page, "11_permeability_to_pk_impact.png", issues)
-            scroll_to_text(page, "Reference vs permeability-adjusted oral PK curves")
+            # Click the "Linear C-t curve" tab to show the concentration-time curves
+            try:
+                page.get_by_role("tab", name=re.compile("Linear C-t curve")).click(timeout=8000)
+                page.wait_for_timeout(1000)
+            except Exception:
+                pass
+            scroll_to_text(page, "Editable scenario parameters")
+            page.wait_for_timeout(600)
             capture(page, "12_pk_impact_comparison_curves.png", issues, full_page=False)
 
             page.goto(BASE_URL, wait_until="domcontentloaded")

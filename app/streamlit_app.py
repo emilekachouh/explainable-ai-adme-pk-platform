@@ -1201,16 +1201,16 @@ def render_comparison_mode() -> None:
         return
 
     display_table = _format_comparison_table(comparison)
-    st.dataframe(
-        display_table.style.applymap(
-            lambda value: "background-color: #dcfce7; color: #166534;" if value == "high permeability class" else (
-                "background-color: #fee2e2; color: #991b1b;" if value == "low permeability class" else ""
-            ),
-            subset=["Predicted class"],
-        ),
-        hide_index=True,
-        use_container_width=True,
+    _style_fn = lambda value: (
+        "background-color: #dcfce7; color: #166534;" if value == "high permeability class"
+        else ("background-color: #fee2e2; color: #991b1b;" if value == "low permeability class" else "")
     )
+    try:
+        # pandas >= 2.1: applymap was renamed to map
+        _styled = display_table.style.map(_style_fn, subset=["Predicted class"])
+    except AttributeError:
+        _styled = display_table.style.applymap(_style_fn, subset=["Predicted class"])
+    st.dataframe(_styled, hide_index=True, use_container_width=True)
 
     chart_data = comparison.set_index("molecule")
     chart_cols = st.columns(7)

@@ -1,5 +1,29 @@
 # Beginner Usage Guide
 
+## What This App Does
+
+This platform links molecular structure to explainable Caco-2 permeability prediction, then shows how permeability-related assumptions can influence educational oral PK simulations. It is intended for early ADME learning and hypothesis generation, not clinical PK prediction.
+
+## How To Use
+
+1. Select an example molecule or paste a SMILES.
+2. Review descriptors such as MW, logP, TPSA, and HBD/HBA.
+3. View the Caco-2 permeability prediction.
+4. Check confidence and applicability domain.
+5. Compare molecules to learn structure-property trends.
+6. Use the Permeability to PK Impact tool to explore F and ka assumptions.
+7. Download the markdown report or CSV tables.
+
+## IV Bolus, Oral Dosing, NCA, PBPK, and IVIVE
+
+- IV bolus means drug is placed directly into systemic circulation, so F = 1.
+- Oral dosing includes absorption and first-pass effects, so the app reports CL/F rather than true CL unless F is known.
+- NCA means noncompartmental analysis; it calculates exposure summaries such as AUC, AUMC, MRT, Cmax, and Tmax from concentration-time data.
+- PBPK means physiologically based pharmacokinetic modeling; this app does not perform validated PBPK.
+- IVIVE means in vitro-in vivo extrapolation. This app does not perform validated IVIVE.
+
+Permeability-related assumptions can change F and ka in the educational oral simulation. They do not by themselves change true systemic clearance.
+
 This guide explains how to run and interpret the AI-PBPK / ADME Predictor app.
 
 ## Install

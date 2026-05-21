@@ -4,6 +4,18 @@
 
 AI-PBPK / ADME Predictor is an explainable computational ADME screening prototype using real public Caco-2 permeability data. The platform combines RDKit descriptors, Morgan fingerprints, baseline machine learning, scaffold-split validation, SHAP interpretation, uncertainty scoring, applicability-domain analysis, and an educational PK/NCA simulator. The system is designed for early discovery support and education, not clinical or regulatory prediction.
 
+## App Education and Reporting Layer
+
+The Streamlit app includes a visible explanation of what the platform does, a stepwise usage guide, reviewer-focused explanation levels, and downloadable markdown/CSV reports. Reports include the selected molecule, canonical SMILES, descriptor table, permeability prediction, confidence, entropy, applicability-domain result, feature interpretation summary, permeability-to-F/ka assumptions, AUC/Cmax/Tmax/CL/F comparisons, limitations, and reference sources.
+
+## PK Equation and Interpretation Layer
+
+The educational PK/NCA module documents IV bolus, oral first-order absorption, elimination, AUC, CL/F, MRT, half-life, and Vss equations. Permeability-related assumptions are mapped to F and ka in an educational oral scenario while dose, Vd, and true CL are held constant. This demonstrates why AUC and Cmax can change and why apparent CL/F can change without claiming that permeability changes true systemic clearance.
+
+## IVIVE Boundary and References
+
+The app explains that IVIVE would require validated intrinsic clearance, protein binding, blood-to-plasma ratio, permeability/solubility, transporter involvement, hepatic blood-flow assumptions, fraction absorbed, bioavailability, route/dose/formulation metadata, and external human PK validation. Reference sources are listed in `docs/reference_sources.md`. This platform currently demonstrates Caco-2 permeability screening and educational absorption scenarios only.
+
 ## Dataset
 
 The primary dataset is the TDC Caco2_Wang public benchmark, mirrored by scikit-fingerprints on Hugging Face. The endpoint is experimental Caco-2 log(Papp). After preprocessing, 906 valid canonicalized molecules remained.

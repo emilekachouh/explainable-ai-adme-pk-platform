@@ -64,10 +64,26 @@ Add or update screenshots before public release:
 The app has been upgraded from a basic SMILES form into a structured workbench:
 
 - Sidebar navigation for ADME screening, molecule comparison, PK/NCA simulation, and evidence review
+- Beginner-friendly and reviewer-level explanation modes
 - Clean page title, scientific subtitle, metric cards, tabs, expanders, and warning states
 - SVG molecule rendering to avoid GUI/X11 dependencies on Streamlit Cloud
 - Cached descriptor, prediction, applicability-domain, and rendering calls for lightweight deployment
 - Graceful fallback messages when optional model artifacts or SHAP images are unavailable
+- Markdown report download plus descriptor and PK-impact CSV downloads
+
+## What The App Does
+
+The platform links molecular structure to explainable Caco-2 permeability prediction, then shows how permeability-related assumptions can influence educational oral PK simulations. It combines RDKit descriptors, a real-data ML permeability model, confidence scoring, applicability-domain checks, SHAP-style interpretation, molecule comparison, and PK/NCA teaching tools. It is intended for early ADME learning and hypothesis generation, not clinical PK prediction.
+
+## How To Use
+
+1. Select an example molecule or paste a SMILES.
+2. Review MW, logP, TPSA, HBD/HBA, and related descriptors.
+3. View the Caco-2 permeability prediction.
+4. Check confidence and applicability domain.
+5. Compare molecules in comparison mode.
+6. Use the Permeability to PK Impact tool to explore F and ka assumptions.
+7. Download the markdown report and CSV tables.
 
 ## Model Loading and Deployment Behavior
 
@@ -177,6 +193,26 @@ The simulator includes teaching presets:
 - Insufficient sampling example
 
 Educational expanders explain AUC, AUMC, MRT/MBRT, CL, CL/F, and Vss in beginner-friendly language while preserving the boundary that all outputs depend on assumed parameters.
+
+### PK Equations
+
+- IV bolus: `C(t) = Dose / Vd x exp(-kel x t)`
+- Oral first-order absorption: `C(t) = (F x Dose x ka) / [Vd x (ka - kel)] x [exp(-kel x t) - exp(-ka x t)]`
+- Elimination: `kel = CL / Vd`
+- IV AUC: `AUC_IV = Dose / CL`
+- Oral AUC: `AUC_oral = F x Dose / CL`
+- Apparent oral clearance: `CL/F = Dose / AUC`
+- NCA residence time: `MRT = AUMC / AUC`
+- Half-life: `t1/2 = ln(2) / lambda_z`
+- IV Vss assumption: `Vss = Dose x AUMC / AUC^2`
+
+IV bolus places drug directly into systemic circulation, so F = 1 by definition. Oral dosing includes absorption and first-pass effects, so oral profiles report apparent clearance CL/F unless F is independently known. Permeability-related assumptions can influence F and ka in educational oral scenarios; they do not determine true systemic clearance.
+
+## IVIVE and References
+
+IVIVE means in vitro-in vivo extrapolation. A validated human PK workflow would require experimentally measured or validated inputs such as intrinsic clearance, protein binding, blood-to-plasma ratio, permeability/solubility, transporter involvement, hepatic blood-flow assumptions, fraction absorbed, bioavailability, route/dose/formulation metadata, and external human PK validation.
+
+Reference sources are listed in `docs/reference_sources.md`, including FDA PBPK and bioavailability guidance pages, EMA PBPK reporting guidance, EMA clinical pharmacology/PK Q&A, and textbook references requiring citation-detail verification before publication.
 
 ## Repository Map
 

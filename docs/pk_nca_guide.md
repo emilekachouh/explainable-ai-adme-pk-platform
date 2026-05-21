@@ -4,6 +4,22 @@ This guide documents the educational pharmacokinetic and noncompartmental analys
 
 The PK/NCA simulator is mechanistic and instructional. It demonstrates how exposure metrics are calculated under explicit assumptions. It does not claim that Caco-2 permeability directly predicts human PK, and it must not be used for clinical, regulatory, safety, efficacy, or dose decisions.
 
+## How To Use The PK/NCA Module
+
+1. Choose a teaching preset or edit route, dose, Vd, kel, ka, F, duration, and sampling interval.
+2. Review Cmax, Tmax, AUCinf, half-life, MRT, CL or CL/F, and Vss where appropriate.
+3. Inspect the linear and semi-log concentration-time plots.
+4. Open the equations panel to connect curve shape to assumptions.
+5. Download the PK/NCA report or CSV tables for review.
+
+## IV Bolus vs Oral Dosing
+
+IV bolus dosing sets F = 1 by definition because the dose enters systemic circulation directly. Oral dosing includes absorption and first-pass effects, so the observable clearance term is CL/F unless bioavailability is independently known. Permeability can influence educational assumptions for F and ka, but it does not directly determine true systemic clearance.
+
+## IVIVE Boundary
+
+IVIVE means in vitro-in vivo extrapolation. A true IVIVE workflow would require validated intrinsic clearance, protein binding, blood-to-plasma ratio, permeability and solubility data, transporter assessment, hepatic blood-flow assumptions, fraction absorbed, bioavailability, route/dose/formulation metadata, and external human PK validation. This app demonstrates permeability-informed educational absorption scenarios; it does not perform validated IVIVE.
+
 ## Simulation Models
 
 ### IV Bolus One-Compartment Model

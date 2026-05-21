@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +27,7 @@ from adme_predictor.pk_visualization import (  # noqa: E402
     plot_concentration_time,
     plot_semilog_concentration_time,
 )
-from adme_predictor.reporting import build_prediction_report, render_molecule_png  # noqa: E402
+from adme_predictor.reporting import build_prediction_report, render_molecule_svg  # noqa: E402
 from adme_predictor.uncertainty import confidence_from_probability  # noqa: E402
 
 
@@ -140,10 +141,15 @@ def render_adme_screening() -> None:
         descriptors = calculate_descriptors(smiles)
         flags = calculate_lipinski_flags(descriptors)
         feature_vector = build_feature_vector(smiles)
-        molecule_png = render_molecule_png(smiles)
     except ValueError as error:
         st.error(str(error))
         return
+
+    molecule_svg = None
+    try:
+        molecule_svg = render_molecule_svg(smiles)
+    except Exception:
+        molecule_svg = None
 
     prediction = None
     confidence = None
@@ -152,7 +158,11 @@ def render_adme_screening() -> None:
     with workflow_tabs[0]:
         col_structure, col_smiles = st.columns([1, 2])
         with col_structure:
-            st.image(molecule_png, caption="2D molecular structure")
+            if molecule_svg:
+                components.html(molecule_svg, height=320)
+                st.caption("2D molecular structure")
+            else:
+                st.warning("Molecule image could not be rendered in this environment.")
         with col_smiles:
             st.subheader("Canonical SMILES")
             st.code(canonical_smiles, language="text")

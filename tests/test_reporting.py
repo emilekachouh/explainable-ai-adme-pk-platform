@@ -1,10 +1,10 @@
-from adme_predictor.reporting import build_prediction_report, render_molecule_png
+from adme_predictor.reporting import build_prediction_report, render_molecule_svg
 
 
-def test_molecule_rendering_returns_png_bytes():
-    image = render_molecule_png("CCO")
+def test_molecule_rendering_returns_svg_text():
+    image = render_molecule_svg("CCO")
 
-    assert image.startswith(b"\x89PNG")
+    assert "<svg" in image
     assert len(image) > 100
 
 

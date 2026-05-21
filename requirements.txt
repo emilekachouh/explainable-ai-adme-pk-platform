@@ -7,5 +7,4 @@ rdkit
 xgboost
 joblib
 shap
-pillow
 pytest

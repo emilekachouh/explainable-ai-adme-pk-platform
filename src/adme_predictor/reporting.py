@@ -10,7 +10,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
-from rdkit.Chem.Draw import rdMolDraw2D
 from sklearn.metrics import RocCurveDisplay
 
 from adme_predictor.config import REPORTS_DIR
@@ -23,16 +22,18 @@ FIGURES_DIR = REPORTS_DIR / "figures"
 MODEL_CARD_DOC_PATH = Path("docs") / "model_card.md"
 
 
-def render_molecule_png(smiles: str, size: tuple[int, int] = (450, 300)) -> bytes:
-    """Render a SMILES string as PNG bytes using RDKit's headless Cairo drawer."""
+def render_molecule_svg(smiles: str, size: tuple[int, int] = (450, 300)) -> str:
+    """Render a SMILES string as SVG text using RDKit's pure vector drawer."""
+    from rdkit.Chem.Draw import rdMolDraw2D
+
     mol = mol_from_smiles(smiles)
     prepared_mol = rdMolDraw2D.PrepareMolForDrawing(mol)
 
     width, height = size
-    drawer = rdMolDraw2D.MolDraw2DCairo(width, height)
+    drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
     drawer.DrawMolecule(prepared_mol)
     drawer.FinishDrawing()
-    return bytes(drawer.GetDrawingText())
+    return str(drawer.GetDrawingText())
 
 
 def build_prediction_report(

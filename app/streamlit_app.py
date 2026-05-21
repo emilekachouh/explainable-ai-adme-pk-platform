@@ -1623,7 +1623,7 @@ def render_adme_screening() -> None:
                 "<li>Caco-2 permeability prediction and class probability</li>"
                 "<li>Confidence score and entropy</li>"
                 "<li>Applicability-domain category and nearest-neighbor similarity</li>"
-                "<li>Explainability summary (descriptor drivers and SHAP interpretation)</li>"
+                "<li>Descriptor-based interpretation (rule-based driver analysis; offline SHAP artifacts available separately)</li>"
                 "<li>Permeability-to-PK impact: F, ka, AUC, Cmax, Tmax, CL/F assumptions</li>"
                 "<li>AUC ratio, Cmax ratio, Tmax shift, CL/F ratio (adjusted vs reference)</li>"
                 "<li>Core PK equations (AUC = F × Dose / CL; CL/F = Dose / AUC; kel = CL / Vd)</li>"
@@ -1869,7 +1869,7 @@ def render_comparison_mode() -> None:
                 st.bar_chart(chart_data[["suggested_f"]])
         with pk_chart_cols[1]:
             if "suggested_ka" in chart_data and chart_data["suggested_ka"].notna().any():
-                st.caption("Suggested ka (absorption rate assumption)")
+                st.caption("Scenario ka (absorption rate assumption)")
                 st.bar_chart(chart_data[["suggested_ka"]])
         if largest_f is not None:
             st.write(f"- Largest scenario F (educational assumption): **{largest_f['molecule']}** ({largest_f['suggested_f']:.2f}) — highest educational F scenario assumption.")

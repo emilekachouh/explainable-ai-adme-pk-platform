@@ -1,305 +1,332 @@
-# Explainable AI ADME-PK Platform
+# Explainable Caco-2 Permeability Screening + PK Education Platform
 
-**Real-data Caco-2 permeability prediction with explainability, applicability-domain checks, molecule comparison, educational PK/NCA simulation, and a permeability-to-PK impact centerpiece.**
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-deployed-red)
+![RDKit](https://img.shields.io/badge/RDKit-cheminformatics-green)
+![Tests](https://img.shields.io/badge/tests-179%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-> This platform takes a molecule, computes medicinal chemistry descriptors, predicts Caco-2 permeability risk using a real-data ML model, checks confidence and applicability domain, explains the prediction, and shows how permeability-related assumptions can alter educational oral PK simulations such as AUC, Cmax, Tmax, and CL/F. It is for ADME learning and hypothesis generation, not validated clinical PK prediction.
+An open-source platform for Caco-2 permeability classification from molecular structure, with confidence scoring, applicability-domain checks, batch screening, descriptor-based interpretation, and educational PK/NCA sensitivity simulation.
 
-This is a computational pharmacology portfolio platform for early ADME screening and translational modeling education. It uses a real public Caco-2 permeability dataset and presents predictions responsibly: no clinical, regulatory, safety, efficacy, dose, validated human PK, or PBPK claims are made.
+> **Scientific scope:** This platform predicts Caco-2 permeability class from molecular structure. It does **not** predict validated human oral bioavailability F, validated human PK, or PBPK parameters. PK/NCA outputs use user-specified assumptions and are for educational use only.
 
-## What This Demonstrates
+---
 
-- Real public Caco-2 ADME dataset (TDC Caco2_Wang, 906 compounds)
-- RDKit molecular validation, descriptors, and Morgan fingerprints
-- Random Forest and XGBoost classifiers for Caco-2 permeability classification
-- Random split and Bemis-Murcko scaffold split validation
-- SHAP explainability for global and local model interpretation
-- Binary entropy confidence scoring and prediction uncertainty
-- Applicability-domain checks via nearest-neighbor Tanimoto similarity
-- Pharma-style Streamlit workbench: SVG rendering, searchable 172-molecule library, comparison mode, downloadable reports
-- Deployment-safe model loading with graceful descriptor-based fallback
-- **Permeability-to-PK Impact centerpiece**: editable F/ka/Dose/Vd/CL parameters, overlay concentration-time curves (linear + semilog), AUC/Cmax/Tmax/CL-F ratio metrics, true CL held fixed by design
-- Educational PK/NCA simulator with 6 teaching presets + 10 literature drug profiles (aspirin, ibuprofen, caffeine, metformin, propranolol, atenolol, warfarin, diazepam, midazolam, omeprazole)
-- Explanation levels: Beginner, Pharmaceutics graduate student, PI / PK reviewer, AI/ML recruiter
-- 82 unit tests covering scientific correctness (AUC ratios, CL/F invariance, true CL not changed by permeability) and software correctness
+## Live App
 
-## Scientific Motivation
+**Live demo:** `<insert Streamlit Cloud URL after deployment>`
 
-Early drug discovery often requires interpretable, fast, and scientifically honest assessment of permeability-related risk. Caco-2 permeability is a useful in vitro proxy for epithelial transport, but it is not the same as human exposure. This project separates molecular ADME screening from educational PK/NCA simulation so users can learn both ML-based structure-property modeling and pharmacokinetic exposure calculations without overclaiming clinical validity.
+---
 
-## Quick Start
+## Screenshots
+
+| Home dashboard | Single molecule profile |
+|---|---|
+| ![Home](docs/screenshots/01_home_dashboard.png) | ![Single molecule](docs/screenshots/02_single_molecule_profile.png) |
+
+| Descriptor-based interpretation | Batch screening results |
+|---|---|
+| ![Descriptor interpretation](docs/screenshots/03_descriptor_based_interpretation.png) | ![Batch results](docs/screenshots/05_batch_results.png) |
+
+| Molecule comparison | Multi-drug PK overlay |
+|---|---|
+| ![Comparison](docs/screenshots/06_molecule_comparison.png) | ![Multi-drug PK](docs/screenshots/07_multi_drug_pk_overlay.png) |
+
+| Absorption sensitivity simulator | Report download |
+|---|---|
+| ![Absorption sensitivity](docs/screenshots/08_absorption_sensitivity_simulator.png) | ![Report download](docs/screenshots/09_report_download.png) |
+
+---
+
+## Why this project matters
+
+Early drug discovery requires fast, interpretable, and scientifically honest assessment of permeability-related risk. Caco-2 is a workhorse in vitro assay for passive membrane transport, but a Caco-2 result alone does not determine human oral bioavailability — which also depends on solubility, dissolution, efflux transporters, first-pass metabolism, and formulation.
+
+This platform is designed to demonstrate that distinction explicitly: the ML model predicts a Caco-2 permeability class; the PK simulator shows how absorption **assumptions** (not model predictions) affect oral exposure calculations. Confidence scoring and applicability-domain checks provide the trust layer that raw ML probabilities alone cannot.
+
+Batch screening mode reflects the real workflow in pharma early discovery, where many compounds need to be triaged simultaneously before any wet-lab resource is committed.
+
+---
+
+## What the app does
+
+| Capability | Description |
+|---|---|
+| Single molecule screening | SMILES input → descriptor calculation → Caco-2 classification → confidence → applicability domain |
+| Batch SMILES screening | CSV upload or paste of 50+ compounds; per-compound prediction, confidence, domain check, scenario F/ka |
+| Example molecule library | 221 RDKit-validated molecules across 18 therapeutic categories |
+| Descriptor profiling | MW, logP, TPSA, HBD/HBA, rotatable bonds, Csp3, rings, Lipinski/ADME flags |
+| Caco-2 prediction | XGBoost classifier, probability output, confidence category, entropy |
+| Applicability domain | Tanimoto nearest-neighbour similarity to training set, explicit domain-shift warning |
+| Descriptor-based interpretation | Rule-based threshold profile; identifies physicochemical drivers of prediction |
+| Molecule comparison | Side-by-side comparison of 2–10 molecules across physicochemical, model & trust, and PK assumption tabs |
+| PK/NCA simulator | IV bolus/infusion, oral one-compartment; 26 curated literature teaching profiles; NCA metrics |
+| Absorption sensitivity simulator | User-editable scenario F and ka; reference vs adjusted oral PK overlay; AUC/Cmax/Tmax/CL/F ratios |
+| Multi-drug PK comparison | Select 2–5 molecules; overlay permeability-informed oral PK curves with ratio table |
+| Report downloads | Per-molecule markdown + CSV; multi-drug comparison report and metrics CSV |
+
+---
+
+## What the app does NOT do
+
+> Read this section before presenting the app to a clinical, regulatory, or patient-facing audience.
+
+- Does **not** predict human oral bioavailability F
+- Does **not** predict validated human pharmacokinetics
+- Does **not** perform validated PBPK modeling
+- Does **not** support clinical, regulatory, safety, efficacy, or dose decisions
+- Does **not** replace experimental Caco-2 permeability assays
+- Does **not** compute live SHAP values at inference time (SHAP analyses were generated offline; descriptor-based interpretation is shown instead)
+
+---
+
+## Scientific workflow
+
+```
+SMILES string or batch CSV
+        │
+        ▼
+RDKit validation + canonicalization
+        │
+        ▼
+Physicochemical descriptors
+(MW, logP, TPSA, HBD/HBA, rings, Csp3, Morgan fingerprints)
+        │
+        ▼
+Caco-2 permeability classifier (XGBoost)
+        │
+        ├── Confidence score (entropy + probability margin)
+        ├── Applicability domain (Tanimoto nearest-neighbour)
+        └── Descriptor-based interpretation (rule-based threshold profile)
+                │
+                ▼
+        Scenario F/ka assumptions
+        (NOT model predictions — user-editable educational starting point)
+                │
+                ▼
+        Absorption sensitivity simulation
+        (one-compartment oral PK, AUC/Cmax/Tmax/CL/F ratios)
+                │
+                ▼
+        Downloadable report (markdown + CSV)
+```
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Python 3.9 or higher
+- pip
+
+### Windows
 
 ```bash
+git clone <repository-url>
+cd ai-pbpk-adme-predictor
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+### macOS / Linux
+
+```bash
+git clone <repository-url>
+cd ai-pbpk-adme-predictor
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+---
+
+## Run the app
+
+```bash
 streamlit run app/streamlit_app.py
 ```
 
-Run tests:
+Open [http://localhost:8501](http://localhost:8501) in your browser.
+
+---
+
+## Run tests
 
 ```bash
 python -m pytest
 ```
 
-## Live App
+179+ tests covering scientific correctness (AUC ratios, CL/F invariance, scenario F bounds) and software correctness (descriptor calculation, confidence scoring, SMILES validation).
 
-Live demo URL: `<add Streamlit Cloud URL after deployment>`
+---
 
-The deployed app is intended as an interactive portfolio demonstration for explainable ADME screening and PK/NCA education. It should not be presented as a clinical, regulatory, safety, efficacy, dose, or validated human PK prediction tool.
+## Batch screening example
 
-## Recruiter and Reviewer Demo Value
+Create a CSV file:
 
-The app is designed to communicate both software and scientific judgment:
+```csv
+name,smiles,category
+Aspirin,CC(=O)Oc1ccccc1C(=O)O,NSAIDs
+Caffeine,Cn1cnc2c1c(=O)n(C)c(=O)n2C,Natural products
+Metformin,CN(C)C(=N)N=C(N)N,Antidiabetic
+Ibuprofen,CC(C)Cc1ccc(C(C)C(=O)O)cc1,NSAIDs
+Warfarin,CC(=O)CC(c1ccccc1)c1c(O)c2ccccc2oc1=O,Anticoagulants
+```
 
-- AI-health recruiters can see a deployed, interactive ML product rather than a static notebook.
-- Biotech hiring managers can review model outputs, confidence, applicability domain, and scientific boundaries in one workflow.
-- PK/ADME reviewers can inspect descriptors, Caco-2 interpretation, scaffold-validation rationale, and PK/NCA assumptions.
-- The interface demonstrates deployment readiness: health checks, cached operations, graceful fallbacks, SVG rendering, and downloadable reports.
+Upload via the **Batch Screening** page → **Upload CSV** tab, or paste directly into the **Paste SMILES** tab.
 
-## App Screenshots
+---
 
-Add or update screenshots before public release:
+## Repository structure
 
-- `docs/screenshots/adme_workbench.png`
-- `docs/screenshots/molecule_comparison.png`
-- `docs/screenshots/pk_nca_simulator.png`
-- `docs/screenshots/evidence_limits.png`
+```text
+app/                          Streamlit interface (main entry point)
+  streamlit_app.py
+data/
+  raw/                        TDC Caco2_Wang raw dataset
+  processed/                  Preprocessed/canonicalized dataset
+docs/
+  architecture.md             System architecture
+  beginner_usage_guide.md     Non-specialist walkthrough
+  data_card.md                Dataset documentation
+  methods.md                  Computational methods
+  model_card.md               Model card
+  pk_nca_guide.md             PK/NCA education guide
+  open_source_release_checklist.md
+  screenshots/                App screenshots (10 curated)
+models/
+  baseline_permeability_classifier.joblib
+  baseline_feature_columns.joblib
+  baseline_permeability_regressor.joblib
+notebooks/
+  01_dataset_qc_and_eda.ipynb
+reports/
+  baseline_metrics.csv        Model performance metrics
+  scaffold_split_comparison.md
+  shap_interpretation.md      Offline SHAP analysis (XGBoost)
+  technical_report.md
+  language_claims_audit.md    Claim safety audit
+  interview_pitch.md          Resume / pitch materials
+  screenshot_qc_report.md
+  release_qc_report.md        Automated QC output
+  figures/                    Publication-quality figures
+scripts/
+  capture_streamlit_screenshots.py
+  qc_release_check.py         Release QC automation
+src/adme_predictor/
+  applicability.py            Applicability domain
+  demo_model.py               Model loading + fallback
+  drug_pk_profiles.py         26 literature teaching profiles
+  education.py                PK education, scenario F/ka, reports
+  example_molecules.py        221 example molecules
+  features.py                 RDKit descriptors + fingerprints
+  modeling.py                 ML training pipeline
+  nca.py                      NCA calculations
+  pk.py                       One-compartment PK simulation
+  pk_visualization.py         Plot generation
+  reporting.py                SVG rendering, report formatting
+  uncertainty.py              Confidence scoring
+tests/                        179+ automated tests
+```
 
-## Streamlit Demo Experience
+---
 
-The app has been upgraded from a basic SMILES form into a structured workbench:
-
-- Sidebar navigation for ADME screening, molecule comparison, PK/NCA simulation, and evidence review
-- Beginner-friendly and reviewer-level explanation modes
-- Clean page title, scientific subtitle, metric cards, tabs, expanders, and warning states
-- SVG molecule rendering to avoid GUI/X11 dependencies on Streamlit Cloud
-- Cached descriptor, prediction, applicability-domain, and rendering calls for lightweight deployment
-- Graceful fallback messages when optional model artifacts or SHAP images are unavailable
-- Markdown report download plus descriptor and PK-impact CSV downloads
-
-## What The App Does
-
-The platform links molecular structure to explainable Caco-2 permeability prediction, then shows how permeability-related assumptions can influence educational oral PK simulations. It combines RDKit descriptors, a real-data ML permeability model, confidence scoring, applicability-domain checks, SHAP-style interpretation, molecule comparison, and PK/NCA teaching tools. It is intended for early ADME learning and hypothesis generation, not clinical PK prediction.
-
-## How To Use
-
-1. Select an example molecule or paste a SMILES.
-2. Review MW, logP, TPSA, HBD/HBA, and related descriptors.
-3. View the Caco-2 permeability prediction.
-4. Check confidence and applicability domain.
-5. Compare molecules in comparison mode.
-6. Use the Permeability to PK Impact tool to explore F and ka assumptions.
-7. Download the markdown report and CSV tables.
-
-## Model Loading and Deployment Behavior
-
-The Streamlit app expects two lightweight artifacts:
-
-- `models/baseline_permeability_classifier.joblib`
-- `models/baseline_feature_columns.joblib`
-
-These are intentionally allowed in git because they are small enough for deployment and prevent the app from showing an empty "train the model first" state. If artifacts are unavailable, the app attempts first-run training through the existing public-data pipeline. If that also fails, it uses a transparent descriptor-based educational fallback so the demo remains usable while clearly labeling the prediction source.
-
-## Example Molecule Library
-
-The app includes **172 RDKit-canonicalized example molecules** organized by category:
-
-- Analgesics/NSAIDs
-- CNS drugs
-- Cardiovascular drugs
-- Antibiotics
-- Antivirals
-- Oncology drugs
-- Steroids/hormones
-- GI drugs
-- Immunosuppressants
-- Natural products/cannabinoids
-- PK teaching examples
-- Highly polar/low permeability examples
-- Lipophilic/high permeability examples
-
-Examples include caffeine, aspirin, ibuprofen, acetaminophen, naproxen, diclofenac, warfarin, beta blockers, calcium-channel blockers, statins, antibiotics, antivirals, oncology drugs, steroids, cannabinoids, and PK teaching compounds. Molecules with difficult peptide/biologic representations were skipped rather than represented with invented SMILES.
-
-## Permeability to PK Impact — Centerpiece
-
-This is the most scientifically interesting part of the platform. After predicting Caco-2 permeability for a selected molecule, the app:
-
-1. Maps the permeability class probability to educational oral absorption assumptions (F and ka).
-2. Lets the user edit Dose, Vd, true CL, reference F, reference ka, adjusted F, and adjusted ka.
-3. Simulates two oral one-compartment profiles (reference and permeability-adjusted).
-4. Plots both profiles on linear and semi-log axes.
-5. Reports AUC ratio, Cmax ratio, Tmax shift, CL/F ratio — all with true CL held constant by design.
-6. Provides beginner and PhD-level interpretation of why AUC changes, why CL/F changes, and why true CL does not change from permeability.
-
-**Correct scientific logic preserved:**
-- Permeability may affect F and ka (absorption assumptions).
-- F affects AUC_oral = F × Dose / CL.
-- ka affects Cmax and Tmax (absorption-rate-limited shape).
-- True CL remains unchanged unless the user explicitly edits it.
-- CL/F changes because F changes; apparent oral clearance is not true systemic clearance.
-
-## Comparison Mode
-
-The molecule comparison workflow lets users select 2-5 example molecules and compare:
-
-- Molecular weight, LogP, TPSA, HBD/HBA
-- Predicted Caco-2 permeability class and probability
-- Prediction confidence score
-- Applicability-domain nearest-neighbor similarity
-- **Suggested F and ka** derived from permeability probability (new in v2)
-
-Bar charts for all seven columns, plus automatic beginner and PhD-level interpretation.
-
-## Dataset
-
-Primary dataset: **TDC Caco2_Wang** public benchmark.
+## Model and data
 
 | Field | Value |
 |---|---|
-| Source | Therapeutics Data Commons benchmark mirrored by scikit-fingerprints on Hugging Face |
-| Endpoint | Experimental Caco-2 log(Papp) |
-| Processed sample size | 906 valid canonicalized molecules |
-| ML tasks | Median-threshold permeability classification and continuous log(Papp) regression |
-| Dataset documentation | `reports/caco2_wang_dataset_metadata.csv` |
+| Dataset | TDC Caco2_Wang benchmark (Wang et al., J. Chem. Inf. Model. 2016) |
+| Endpoint | Experimental Caco-2 log(Papp) in cm/s |
+| Processed molecules | 906 RDKit-canonicalized structures |
+| Classification threshold | Dataset training-split median log(Papp) |
+| Best classifier | XGBoost |
+| Random split AUROC | 0.946 |
+| Random split F1 | 0.863 |
+| Scaffold split AUROC | 0.934 |
+| Scaffold split F1 | 0.841 |
 
-Only real public ADME/PK datasets are allowed for model training and final results. Toy molecules are used only for tests and UI examples.
+See `docs/data_card.md` for full dataset documentation and `docs/model_card.md` for the model card.
 
-## Model Metrics
+---
 
-| Validation | Task | Best model | Key metrics |
-|---|---|---|---|
-| Random split | Classification | XGBoost | AUROC 0.946, F1 0.863 |
-| Random split | Regression | Random forest regressor | R2 0.785, MAE 0.297 |
-| Scaffold split | Classification | XGBoost | AUROC 0.934, F1 0.841 |
-| Scaffold split | Regression | XGBoost regressor | R2 0.650, MAE 0.392 |
+## PK/NCA equations
 
-## Why Scaffold Split Matters
+The following equations are used in the educational simulation modules. All parameters are user-specified or literature-teaching assumptions unless explicitly stated.
 
-Random splits can overestimate performance in drug-discovery ML because close structural analogs may appear in both train and test sets. Bemis-Murcko scaffold splitting keeps identical core scaffolds out of both sets simultaneously, giving a stricter estimate of generalization to chemically distinct molecules.
-
-## Explainability
-
-SHAP analyses are generated for the XGBoost classifier and regressor:
-
-- Summary plots
-- Beeswarm plots
-- Bar importance plots
-- Local aspirin explanation
-- Local caffeine explanation
-
-Interpretation focuses on TPSA, HBD/HBA, molecular weight, logP, flexibility, and Morgan fingerprint substructure signals.
-
-## Applicability Domain
-
-Predictions include nearest-neighbor Morgan fingerprint Tanimoto similarity to training chemistry. If a molecule is chemically distant from the training set, the app warns:
-
-> This molecule is chemically dissimilar to most training compounds. Prediction reliability may be reduced.
-
-## PK/NCA Simulator
-
-The PK/NCA module is educational and mechanistic. It simulates:
-
-- IV bolus one-compartment profiles
-- Oral one-compartment profiles with first-order absorption
-- IV infusion profiles
-
-It calculates AUC, AUMC, MRT/MBRT, lambda_z, half-life, extrapolated AUC, percent extrapolated AUC, Cmax, Tmax, CL, CL/F, Vz, and Vss where appropriate. It does not convert Caco-2 permeability into validated human PK.
-
-The simulator includes teaching presets:
-
-- IV bolus high clearance compound
-- IV bolus low clearance compound
-- Oral fast absorption
-- Oral slow absorption
-- Flip-flop kinetics example
-- Insufficient sampling example
-
-And 10 **literature drug teaching profiles** (approximate values for educational use, verify before scientific use):
-
-- Aspirin, Ibuprofen, Caffeine, Metformin, Propranolol, Atenolol, Warfarin, Diazepam, Midazolam, Omeprazole
-
-Educational expanders explain AUC, AUMC, MRT/MBRT, CL, CL/F, and Vss in beginner-friendly language while preserving the boundary that all outputs depend on assumed parameters.
-
-### PK Equations
-
-- IV bolus: `C(t) = Dose / Vd x exp(-kel x t)`
-- Oral first-order absorption: `C(t) = (F x Dose x ka) / [Vd x (ka - kel)] x [exp(-kel x t) - exp(-ka x t)]`
-- Elimination: `kel = CL / Vd`
-- IV AUC: `AUC_IV = Dose / CL`
-- Oral AUC: `AUC_oral = F x Dose / CL`
-- Apparent oral clearance: `CL/F = Dose / AUC`
-- NCA residence time: `MRT = AUMC / AUC`
-- Half-life: `t1/2 = ln(2) / lambda_z`
-- IV Vss assumption: `Vss = Dose x AUMC / AUC^2`
-
-IV bolus places drug directly into systemic circulation, so F = 1 by definition. Oral dosing includes absorption and first-pass effects, so oral profiles report apparent clearance CL/F unless F is independently known. Permeability-related assumptions can influence F and ka in educational oral scenarios; they do not determine true systemic clearance.
-
-## IVIVE and References
-
-IVIVE means in vitro-in vivo extrapolation. A validated human PK workflow would require experimentally measured or validated inputs such as intrinsic clearance, protein binding, blood-to-plasma ratio, permeability/solubility, transporter involvement, hepatic blood-flow assumptions, fraction absorbed, bioavailability, route/dose/formulation metadata, and external human PK validation.
-
-Reference sources are listed in `docs/reference_sources.md`, including FDA PBPK and bioavailability guidance pages, EMA PBPK reporting guidance, EMA clinical pharmacology/PK Q&A, and textbook references requiring citation-detail verification before publication.
-
-## Repository Map
-
-```text
-app/                 Streamlit interface
-data/                Public dataset files
-docs/                Guides, model card, architecture, release checklist
-models/              Saved baseline model artifacts
-notebooks/           Dataset QC and EDA notebook
-reports/             Metrics, figures, reports, manuscript drafts
-src/adme_predictor/  Source modules
-tests/               Unit tests
+```
+IV bolus:          C(t) = Dose/Vd × exp(-kel × t)
+Oral absorption:   C(t) = (F × Dose × ka) / [Vd × (ka-kel)] × [exp(-kel×t) - exp(-ka×t)]
+Elimination:       kel = CL / Vd
+IV AUC:            AUC_IV = Dose / CL
+Oral AUC:          AUC_oral = F × Dose / CL
+Apparent CL:       CL/F = Dose / AUC_oral
+Half-life:         t½ = ln(2) / lambda_z
+MRT:               MRT = AUMC / AUC
+Vss (IV):          Vss = Dose × AUMC / AUC²
 ```
 
-## Key Reports
+**F and ka are educational scenario assumptions, not ML predictions.** The Caco-2 classifier maps to default F and ka starting values for illustration; users can edit them freely. True systemic clearance CL remains fixed unless the user explicitly changes it.
 
-- `docs/model_card.md`
-- `docs/beginner_usage_guide.md`
-- `docs/pk_nca_guide.md`
-- `reports/technical_report.md`
-- `reports/manuscript.md`
-- `reports/scaffold_split_comparison.md`
-- `reports/shap_interpretation.md`
-- `reports/outlier_analysis.md`
-- `reports/pk_nca_methods.md`
+---
 
 ## Limitations
 
-- Caco-2 permeability is an in vitro assay endpoint, not a clinical endpoint.
-- Median-threshold classification is dataset-specific.
-- Scaffold validation is more rigorous than random splitting but still not prospective external validation.
-- Confidence scores are model-derived uncertainty indicators, not calibrated clinical certainty.
+- Caco-2 Papp is an in vitro assay endpoint, not a clinical absorption endpoint.
+- The median-threshold binary classification is dataset-specific, not a regulatory or clinical cutoff.
+- Scaffold split validation is stricter than random split but is not a prospective external validation.
+- Confidence scores reflect classifier certainty, not clinical certainty.
 - Applicability-domain warnings depend on fingerprint similarity and cannot detect every reliability issue.
 - PK/NCA simulations use assumed parameters and are educational only.
+- SHAP values were generated offline for the trained XGBoost model; they are not recomputed at inference time.
+- Human bioavailability F depends on permeability, solubility, dissolution, efflux transporters, hepatic metabolism, and formulation — Caco-2 alone cannot predict it.
 
-## Future Roadmap
+---
 
-- External validation with additional public ADME datasets
-- Scaffold validation across solubility, clearance, protein binding, and bioavailability endpoints
-- Model calibration and conformal prediction
-- Larger public benchmark comparison
-- Explicit transporter and ionization features
-- Educational PBPK extensions clearly separated from validated predictive claims
-- Deployment-ready app screenshots and hosted demo
+## Roadmap
+
+- SHAP integration at inference time (requires SHAP artifact streaming or on-demand computation)
+- Additional curated literature PK profiles with explicit citations
+- Solubility endpoint integration (e.g., AqSolDB benchmark)
+- External validation on additional public ADME benchmarks
+- Model calibration and conformal prediction confidence intervals
+- Observed C-t curve overlay support (requires actual clinical PK data with source citation)
+
+---
 
 ## Citation
 
-If using this project, cite the underlying data source and tools:
+If you use this project, please cite:
 
-- Therapeutics Data Commons Caco2_Wang benchmark
-- RDKit
-- scikit-learn
-- XGBoost
-- SHAP
+```bibtex
+@software{achou2025caco2,
+  author = {Achou, Emile},
+  title  = {Explainable Caco-2 Permeability Screening + PK Education Platform},
+  year   = {2025},
+  url    = {https://github.com/<your-github-username>/ai-pbpk-adme-predictor},
+}
+```
 
-Formal citation details should be added before publication or manuscript submission.
+Also cite the underlying data and tools:
+
+- Wang, N.-N. et al. *J. Chem. Inf. Model.* 2016, 56, 763–786 (Caco-2 dataset)
+- Huang, K. et al. *Advances in NeurIPS Track on Datasets and Benchmarks.* 2021 (TDC)
+- RDKit: Open-source cheminformatics. https://www.rdkit.org/
+- Chen, T. & Guestrin, C. *KDD 2016* (XGBoost)
+
+---
 
 ## License
 
-Add an explicit open-source license before public release. Suggested options: MIT for software code, with separate notes for public dataset usage and citations.
+MIT License — see [LICENSE](LICENSE) for details.
 
-## Author / Contact
+Data in `data/` is from the TDC Caco2_Wang benchmark. See https://tdcommons.ai for dataset terms.
 
-Author: `<Your Name>`  
-Contact: `<email or LinkedIn>`  
-Portfolio: `<portfolio URL>`
+---
+
+## Author
+
+**Emile Achou**
+
+Contact: emileachou1@gmail.com

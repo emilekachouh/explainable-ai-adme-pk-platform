@@ -56,3 +56,10 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Stale pytest worker cache directories
+pytest-cache-files-*/
+
+# Streamlit junk files
+.streamlit/*.txt
+.streamlit/New*

@@ -1,4 +1,4 @@
-# Model Card: AI-PBPK / ADME Predictor
+# Model Card: Explainable Caco-2 Permeability Screening + PK Education Platform
 
 ## Intended Use
 
@@ -21,7 +21,7 @@ The project reports both random train/test split validation and Bemis-Murcko sca
 
 ## Explainability
 
-RDKit descriptors, Morgan fingerprints, feature importance, and SHAP analyses are used to interpret global and local model behavior. Interpretations emphasize TPSA, HBD/HBA, molecular weight, logP, flexibility, and fingerprint-defined chemical motifs.
+RDKit descriptor threshold profiles provide rule-based interpretation of model-facing signals at inference time. SHAP analyses were generated offline for the trained XGBoost model and are available as static figures in `reports/figures/shap/`. Interpretations emphasize TPSA, HBD/HBA, molecular weight, logP, flexibility, and fingerprint-defined chemical motifs. SHAP values reflect model behavior, not causal biological mechanism.
 
 ## Applicability Domain
 

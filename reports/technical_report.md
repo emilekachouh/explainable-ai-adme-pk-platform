@@ -2,7 +2,7 @@
 
 ## Abstract-Style Summary
 
-AI-PBPK / ADME Predictor is an explainable computational ADME screening prototype using real public Caco-2 permeability data. The platform combines RDKit descriptors, Morgan fingerprints, baseline machine learning, scaffold-split validation, SHAP interpretation, uncertainty scoring, applicability-domain analysis, and an educational PK/NCA simulator. The system is designed for early discovery support and education, not clinical or regulatory prediction.
+The Explainable Caco-2 Permeability Screening + PK Education Platform is a computational ADME screening prototype using real public Caco-2 permeability data. The platform combines RDKit descriptors, Morgan fingerprints, baseline machine learning, scaffold-split validation, descriptor-based interpretation (with offline SHAP artifacts), uncertainty scoring, applicability-domain analysis, and an educational PK/NCA simulator. The system is designed for early discovery support and education, not clinical or regulatory prediction.
 
 ## App Education and Reporting Layer
 

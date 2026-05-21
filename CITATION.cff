@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it as below."
+title: "Explainable Caco-2 Permeability Screening + PK Education Platform"
+version: 1.0.0
+date-released: 2025-01-01
+authors:
+  - family-names: Achou
+    given-names: Emile
+    orcid: ""
+repository-code: "https://github.com/<your-github-username>/ai-pbpk-adme-predictor"
+url: "https://github.com/<your-github-username>/ai-pbpk-adme-predictor"
+abstract: >
+  An open-source platform for Caco-2 permeability classification from molecular
+  structure, with confidence scoring, applicability-domain checks, batch screening,
+  descriptor-based interpretation, and educational PK/NCA sensitivity simulation.
+  Built on the TDC Caco2_Wang public benchmark. Not for clinical or regulatory use.
+keywords:
+  - Caco-2
+  - permeability
+  - ADME
+  - pharmacokinetics
+  - cheminformatics
+  - RDKit
+  - XGBoost
+  - machine learning
+  - drug discovery
+  - education
+license: MIT

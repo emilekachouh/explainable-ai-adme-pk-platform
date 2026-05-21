@@ -1,22 +1,26 @@
-# AI-PBPK / ADME Predictor
+# Explainable AI ADME-PK Platform
 
-**Explainable AI-assisted Caco-2 permeability screening with scaffold validation, uncertainty estimation, applicability-domain analysis, SHAP interpretation, and an educational PK/NCA simulator.**
+**Real-data Caco-2 permeability prediction with explainability, applicability-domain checks, molecule comparison, educational PK/NCA simulation, and a permeability-to-PK impact centerpiece.**
 
-This project is a computational pharmacology portfolio platform for early ADME screening and translational modeling education. It uses a real public Caco-2 permeability dataset and presents predictions responsibly: no clinical, regulatory, safety, efficacy, dose, validated human PK, or PBPK claims are made.
+> This platform takes a molecule, computes medicinal chemistry descriptors, predicts Caco-2 permeability risk using a real-data ML model, checks confidence and applicability domain, explains the prediction, and shows how permeability-related assumptions can alter educational oral PK simulations such as AUC, Cmax, Tmax, and CL/F. It is for ADME learning and hypothesis generation, not validated clinical PK prediction.
+
+This is a computational pharmacology portfolio platform for early ADME screening and translational modeling education. It uses a real public Caco-2 permeability dataset and presents predictions responsibly: no clinical, regulatory, safety, efficacy, dose, validated human PK, or PBPK claims are made.
 
 ## What This Demonstrates
 
-- Real public ADME dataset integration
+- Real public Caco-2 ADME dataset (TDC Caco2_Wang, 906 compounds)
 - RDKit molecular validation, descriptors, and Morgan fingerprints
-- Baseline ML models for Caco-2 permeability classification and regression
+- Random Forest and XGBoost classifiers for Caco-2 permeability classification
 - Random split and Bemis-Murcko scaffold split validation
 - SHAP explainability for global and local model interpretation
-- Confidence scoring and prediction entropy
-- Applicability-domain warnings using nearest-neighbor chemical similarity
-- Modern Streamlit workbench with SVG molecule rendering, searchable examples, comparison mode, and downloadable reports
-- Deployment-safe model loading with included lightweight classifier artifacts and descriptor fallback
-- Educational PK/NCA simulator for AUC, AUMC, MRT, CL, CL/F, Vss, lambda_z, half-life, and extrapolated AUC
-- Unit-tested Python package structure
+- Binary entropy confidence scoring and prediction uncertainty
+- Applicability-domain checks via nearest-neighbor Tanimoto similarity
+- Pharma-style Streamlit workbench: SVG rendering, searchable 172-molecule library, comparison mode, downloadable reports
+- Deployment-safe model loading with graceful descriptor-based fallback
+- **Permeability-to-PK Impact centerpiece**: editable F/ka/Dose/Vd/CL parameters, overlay concentration-time curves (linear + semilog), AUC/Cmax/Tmax/CL-F ratio metrics, true CL held fixed by design
+- Educational PK/NCA simulator with 6 teaching presets + 10 literature drug profiles (aspirin, ibuprofen, caffeine, metformin, propranolol, atenolol, warfarin, diazepam, midazolam, omeprazole)
+- Explanation levels: Beginner, Pharmaceutics graduate student, PI / PK reviewer, AI/ML recruiter
+- 82 unit tests covering scientific correctness (AUC ratios, CL/F invariance, true CL not changed by permeability) and software correctness
 
 ## Scientific Motivation
 
@@ -114,19 +118,35 @@ The app includes **172 RDKit-canonicalized example molecules** organized by cate
 
 Examples include caffeine, aspirin, ibuprofen, acetaminophen, naproxen, diclofenac, warfarin, beta blockers, calcium-channel blockers, statins, antibiotics, antivirals, oncology drugs, steroids, cannabinoids, and PK teaching compounds. Molecules with difficult peptide/biologic representations were skipped rather than represented with invented SMILES.
 
+## Permeability to PK Impact — Centerpiece
+
+This is the most scientifically interesting part of the platform. After predicting Caco-2 permeability for a selected molecule, the app:
+
+1. Maps the permeability class probability to educational oral absorption assumptions (F and ka).
+2. Lets the user edit Dose, Vd, true CL, reference F, reference ka, adjusted F, and adjusted ka.
+3. Simulates two oral one-compartment profiles (reference and permeability-adjusted).
+4. Plots both profiles on linear and semi-log axes.
+5. Reports AUC ratio, Cmax ratio, Tmax shift, CL/F ratio — all with true CL held constant by design.
+6. Provides beginner and PhD-level interpretation of why AUC changes, why CL/F changes, and why true CL does not change from permeability.
+
+**Correct scientific logic preserved:**
+- Permeability may affect F and ka (absorption assumptions).
+- F affects AUC_oral = F × Dose / CL.
+- ka affects Cmax and Tmax (absorption-rate-limited shape).
+- True CL remains unchanged unless the user explicitly edits it.
+- CL/F changes because F changes; apparent oral clearance is not true systemic clearance.
+
 ## Comparison Mode
 
 The molecule comparison workflow lets users select 2-5 example molecules and compare:
 
-- Molecular weight
-- LogP
-- TPSA
-- HBD/HBA
-- Predicted Caco-2 permeability class
-- Prediction confidence
+- Molecular weight, LogP, TPSA, HBD/HBA
+- Predicted Caco-2 permeability class and probability
+- Prediction confidence score
 - Applicability-domain nearest-neighbor similarity
+- **Suggested F and ka** derived from permeability probability (new in v2)
 
-The app displays both a table and bar plots, followed by a short interpretation focused on polarity, lipophilicity, molecular size, and model-domain caution.
+Bar charts for all seven columns, plus automatic beginner and PhD-level interpretation.
 
 ## Dataset
 
@@ -191,6 +211,10 @@ The simulator includes teaching presets:
 - Oral slow absorption
 - Flip-flop kinetics example
 - Insufficient sampling example
+
+And 10 **literature drug teaching profiles** (approximate values for educational use, verify before scientific use):
+
+- Aspirin, Ibuprofen, Caffeine, Metformin, Propranolol, Atenolol, Warfarin, Diazepam, Midazolam, Omeprazole
 
 Educational expanders explain AUC, AUMC, MRT/MBRT, CL, CL/F, and Vss in beginner-friendly language while preserving the boundary that all outputs depend on assumed parameters.
 

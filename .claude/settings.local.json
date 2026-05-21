@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest --tb=short -q)",
+      "Bash(python3 -m pytest --tb=short -q)",
+      "Bash(.venv/bin/pytest.exe --tb=short -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest --tb=short -q)",
+      "Bash(.venv/Scripts/python.exe *)"
+    ]
+  }
+}

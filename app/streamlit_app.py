@@ -6,6 +6,7 @@ import sys
 import random
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -28,14 +29,18 @@ from adme_predictor.education import (  # noqa: E402
     IV_ORAL_EXPLANATION,
     PK_EQUATIONS_TEXT,
     REFERENCES,
+    REVIEWER_SUMMARY,
     SCIENTIFIC_BOUNDARIES,
     WHAT_THIS_APP_DOES,
     build_downloadable_report,
     comparison_interpretations,
     explanation_for_level,
+    permeability_to_pk_assumptions,
     pk_impact_interpretations,
+    pk_impact_profiles,
     pk_impact_table,
 )
+from adme_predictor.drug_pk_profiles import DRUG_PK_PROFILES  # noqa: E402
 from adme_predictor.example_molecules import (  # noqa: E402
     EXAMPLE_CATEGORIES,
     EXAMPLE_MOLECULE_COUNT,
@@ -486,9 +491,15 @@ def _format_comparison_table(comparison: pd.DataFrame) -> pd.DataFrame:
             "high_probability": "High permeability probability",
             "confidence": "Confidence",
             "applicability_similarity": "Applicability similarity",
+            "suggested_f": "Suggested F",
+            "suggested_ka": "Suggested ka (1/h)",
         }
     )
-    numeric_cols = ["MW", "LogP", "TPSA", "High permeability probability", "Confidence", "Applicability similarity"]
+    numeric_cols = [
+        "MW", "LogP", "TPSA",
+        "High permeability probability", "Confidence", "Applicability similarity",
+        "Suggested F", "Suggested ka (1/h)",
+    ]
     for col in numeric_cols:
         if col in table:
             table[col] = table[col].map(lambda value: None if pd.isna(value) else round(float(value), 3))
@@ -869,31 +880,183 @@ def render_adme_screening() -> None:
                 st.image(str(path), caption=path.name)
                 shown = True
         if not shown:
-            st.info("SHAP figure files are not present. The descriptor driver table above remains available as an interpretability fallback.")
+            st.info("The descriptor driver table above provides the lightweight interpretability view for this deployment. Optional saved SHAP figures can be generated offline for deeper model-audit materials.")
 
     with workflow_tabs[5]:
-        st.subheader("Permeability to PK Impact")
+        st.subheader("Permeability to PK Impact — Centerpiece Analysis")
         if prediction is None:
-            st.info("PK impact requires a permeability prediction.")
+            st.info("Run a permeability prediction first to see PK impact analysis.")
         else:
-            pk_table = pk_impact_table(float(prediction["high_permeability_probability"]))
-            interpretations = pk_impact_interpretations(pk_table)
+            probability = float(prediction["high_permeability_probability"])
+            assumptions = permeability_to_pk_assumptions(probability)
+
+            # --- Molecule summary banner ---
+            conf_cat = str(confidence["confidence_category"]) if confidence else "N/A"
+            dom_cat = str(applicability["applicability_category"]) if applicability else "N/A"
             st.markdown(
                 _html_card(
-                    "Educational assumption mapping",
-                    "The app maps permeability-related model output to oral absorption assumptions F and ka. Dose, Vd, and true CL are held constant so users can see why AUC and CL/F move without implying that permeability changes true systemic clearance.",
+                    f"Selected molecule: {selected_name}",
+                    f"Predicted class: <strong>{prediction['predicted_label']}</strong> &nbsp;|&nbsp; "
+                    f"Probability: <strong>{probability:.2f}</strong> &nbsp;|&nbsp; "
+                    f"Confidence: <strong>{conf_cat}</strong> &nbsp;|&nbsp; "
+                    f"Domain: <strong>{dom_cat}</strong>",
                 ),
                 unsafe_allow_html=True,
             )
-            st.dataframe(pk_table, hide_index=True, use_container_width=True)
-            cols = st.columns(4)
-            adjusted = pk_table.iloc[1]
-            cols[0].metric("AUC ratio", _metric_number(adjusted["AUC_ratio_vs_reference"], 2))
-            cols[1].metric("Cmax ratio", _metric_number(adjusted["Cmax_ratio_vs_reference"], 2))
-            cols[2].metric("Tmax shift", _metric_number(adjusted["Tmax_shift_vs_reference"], 2))
-            cols[3].metric("CL/F ratio", _metric_number(adjusted["CLF_ratio_vs_reference"], 2))
-            st.markdown(_html_card("Beginner interpretation", interpretations["beginner"]), unsafe_allow_html=True)
-            st.markdown(_html_card("Pharmaceutics / PhD-level interpretation", interpretations["phd"]), unsafe_allow_html=True)
+
+            # --- Equation card ---
+            eq_col, map_col = st.columns([1, 1.6])
+            with eq_col:
+                st.markdown(
+                    _html_card(
+                        "Core equations",
+                        "AUC<sub>oral</sub> = F &times; Dose / CL<br>"
+                        "CL/F = Dose / AUC<br>"
+                        "k<sub>el</sub> = CL / Vd<br>"
+                        "<small>True CL is held constant by design.</small>",
+                    ),
+                    unsafe_allow_html=True,
+                )
+            with map_col:
+                st.markdown(
+                    _html_card(
+                        "Default assumption mapping",
+                        f"Permeability probability <strong>{probability:.2f}</strong> &rarr; "
+                        f"Adjusted F = <strong>{assumptions['adjusted_f']:.2f}</strong>, "
+                        f"Adjusted ka = <strong>{assumptions['adjusted_ka']:.2f} h⁻¹</strong>. "
+                        "Edit the parameters below to explore alternative scenarios.",
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+            # --- Editable assumption parameters ---
+            st.markdown("#### Editable scenario parameters")
+            _key = str(abs(hash(canonical_smiles)) % 10_000_000)
+            pcols = st.columns(7)
+            pk_dose = pcols[0].number_input(
+                "Dose", 0.001, 10_000.0, float(assumptions["dose"]), step=10.0, key=f"pki_dose_{_key}"
+            )
+            pk_vd = pcols[1].number_input(
+                "Vd (L)", 0.001, 1000.0, float(assumptions["vd"]), step=1.0, key=f"pki_vd_{_key}"
+            )
+            pk_cl = pcols[2].number_input(
+                "True CL (L/h)", 0.001, 500.0, float(assumptions["true_cl"]), step=0.5, key=f"pki_cl_{_key}"
+            )
+            pk_ref_f = pcols[3].slider(
+                "Ref F", 0.01, 1.0, float(assumptions["reference_f"]), step=0.01, key=f"pki_rf_{_key}"
+            )
+            pk_ref_ka = pcols[4].number_input(
+                "Ref ka (1/h)", 0.001, 20.0, float(assumptions["reference_ka"]),
+                format="%.3f", step=0.1, key=f"pki_rka_{_key}"
+            )
+            pk_adj_f = pcols[5].slider(
+                "Adj F", 0.01, 1.0, float(assumptions["adjusted_f"]), step=0.01, key=f"pki_af_{_key}"
+            )
+            pk_adj_ka = pcols[6].number_input(
+                "Adj ka (1/h)", 0.001, 20.0, float(assumptions["adjusted_ka"]),
+                format="%.3f", step=0.1, key=f"pki_aka_{_key}"
+            )
+
+            # --- Compute profiles ---
+            _kel = pk_cl / pk_vd
+            _dur, _ivl = float(assumptions["duration"]), float(assumptions["interval"])
+            try:
+                _ref_prof, _ = simulate_pk_profile(
+                    route="oral", dose=pk_dose, vd=pk_vd, kel=_kel,
+                    duration=_dur, interval=_ivl, ka=pk_ref_ka, bioavailability=pk_ref_f,
+                )
+                _adj_prof, _ = simulate_pk_profile(
+                    route="oral", dose=pk_dose, vd=pk_vd, kel=_kel,
+                    duration=_dur, interval=_ivl, ka=pk_adj_ka, bioavailability=pk_adj_f,
+                )
+                _ref_nca, _ = calculate_nca(_ref_prof, dose=pk_dose, route="oral", bioavailability=pk_ref_f)
+                _adj_nca, _ = calculate_nca(_adj_prof, dose=pk_dose, route="oral", bioavailability=pk_adj_f)
+            except Exception as _pke:
+                st.error(f"PK simulation error: {_pke}")
+                _ref_prof = _adj_prof = _ref_nca = _adj_nca = None
+
+            if _ref_nca and _adj_nca:
+                _ref_auc = float(_ref_nca["auc_inf"])
+                _adj_auc = float(_adj_nca["auc_inf"])
+                _ref_cmax = float(_ref_nca["cmax"])
+                _adj_cmax = float(_adj_nca["cmax"])
+                _ref_tmax = float(_ref_nca["tmax"])
+                _adj_tmax = float(_adj_nca["tmax"])
+                _ref_clf = float(_ref_nca["clearance"])
+                _adj_clf = float(_adj_nca["clearance"])
+                _auc_ratio = _adj_auc / _ref_auc if _ref_auc else float("nan")
+                _cmax_ratio = _adj_cmax / _ref_cmax if _ref_cmax else float("nan")
+                _tmax_shift = _adj_tmax - _ref_tmax
+                _clf_ratio = _adj_clf / _ref_clf if _ref_clf else float("nan")
+
+                # --- Metric cards ---
+                st.markdown("#### Key exposure metrics")
+                m1, m2, m3 = st.columns(3)
+                with m1:
+                    st.metric("True CL (L/h)", f"{pk_cl:.2f}", help="Fixed by design; permeability does not change true systemic clearance.")
+                    st.metric("Ref AUC", f"{_ref_auc:.2f}")
+                    st.metric("Adj AUC", f"{_adj_auc:.2f}")
+                with m2:
+                    st.metric("AUC ratio", f"{_auc_ratio:.3f}", delta=f"{_auc_ratio - 1:.3f}")
+                    st.metric("Cmax ratio", f"{_cmax_ratio:.3f}", delta=f"{_cmax_ratio - 1:.3f}")
+                    st.metric("Tmax shift (h)", f"{_tmax_shift:.2f}")
+                with m3:
+                    st.metric("Ref CL/F", f"{_ref_clf:.2f}")
+                    st.metric("Adj CL/F", f"{_adj_clf:.2f}")
+                    st.metric("CL/F ratio", f"{_clf_ratio:.3f}", delta=f"{_clf_ratio - 1:.3f}")
+
+                # --- Plots ---
+                _curve_data = pd.merge(
+                    _ref_prof.rename(columns={"concentration": "Reference"})[["time", "Reference"]],
+                    _adj_prof.rename(columns={"concentration": "Permeability-adjusted"})[["time", "Permeability-adjusted"]],
+                    on="time",
+                )
+                _curve_data = _curve_data.set_index("time")
+                pk_plot_tabs = st.tabs(["Linear C-t curve", "Semi-log C-t curve", "Scenario table"])
+                with pk_plot_tabs[0]:
+                    st.line_chart(_curve_data)
+                    st.caption("Concentration-time curves for reference vs permeability-adjusted absorption assumptions.")
+                with pk_plot_tabs[1]:
+                    _semi = _curve_data.copy()
+                    for _c in _semi.columns:
+                        _semi[_c] = np.log10(_semi[_c].clip(lower=1e-10))
+                    st.line_chart(_semi)
+                    st.caption("Semi-log scale (log10 concentration); reveals terminal slope more clearly.")
+                with pk_plot_tabs[2]:
+                    _scenario_table = pd.DataFrame({
+                        "Parameter": ["F", "ka (1/h)", "AUC", "Cmax", "Tmax", "True CL", "CL/F"],
+                        "Reference scenario": [
+                            f"{pk_ref_f:.3f}", f"{pk_ref_ka:.3f}",
+                            f"{_ref_auc:.2f}", f"{_ref_cmax:.2f}", f"{_ref_tmax:.2f}",
+                            f"{pk_cl:.2f}", f"{_ref_clf:.2f}",
+                        ],
+                        "Permeability-adjusted": [
+                            f"{pk_adj_f:.3f}", f"{pk_adj_ka:.3f}",
+                            f"{_adj_auc:.2f}", f"{_adj_cmax:.2f}", f"{_adj_tmax:.2f}",
+                            f"{pk_cl:.2f} (unchanged)", f"{_adj_clf:.2f}",
+                        ],
+                    })
+                    st.dataframe(_scenario_table, hide_index=True, use_container_width=True)
+
+                # --- Interpretation cards ---
+                _pk_table_local = pk_impact_table(probability)
+                _interps = pk_impact_interpretations(_pk_table_local)
+                st.markdown(
+                    _html_card("Beginner interpretation", _interps["beginner"]),
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    _html_card("Pharmaceutics / PhD-level interpretation", _interps["phd"]),
+                    unsafe_allow_html=True,
+                )
+
+                # --- Warning banner ---
+                st.warning(
+                    "This is an educational scenario, not a validated human PK prediction. "
+                    "F and ka are assumption-mapped from permeability class, not measured. "
+                    "True CL remains fixed unless you edit it above. "
+                    "Transporters, solubility, first-pass metabolism, protein binding, and formulation also matter."
+                )
 
     with workflow_tabs[6]:
         st.subheader("Scientific Limits")
@@ -979,6 +1142,9 @@ def _comparison_rows(selected_labels: list[str]) -> pd.DataFrame:
         descriptors = dict(analysis["descriptors"])
         prediction, confidence = _prediction_with_confidence(smiles)
         applicability = _cached_applicability(smiles)
+        pk_assumptions = None
+        if prediction:
+            pk_assumptions = permeability_to_pk_assumptions(float(prediction["high_permeability_probability"]))
         rows.append(
             {
                 "molecule": str(entry["name"]),
@@ -993,6 +1159,8 @@ def _comparison_rows(selected_labels: list[str]) -> pd.DataFrame:
                 "high_probability": float(prediction["high_permeability_probability"]) if prediction else None,
                 "confidence": float(confidence["confidence_score"]) if confidence else None,
                 "applicability_similarity": float(applicability["nearest_neighbor_similarity"]) if applicability else None,
+                "suggested_f": float(pk_assumptions["adjusted_f"]) if pk_assumptions else None,
+                "suggested_ka": float(pk_assumptions["adjusted_ka"]) if pk_assumptions else None,
             }
         )
     return pd.DataFrame(rows)
@@ -1044,8 +1212,8 @@ def render_comparison_mode() -> None:
         use_container_width=True,
     )
 
-    chart_cols = st.columns(5)
     chart_data = comparison.set_index("molecule")
+    chart_cols = st.columns(7)
     with chart_cols[0]:
         st.markdown("#### MW")
         st.bar_chart(chart_data[["molecular_weight"]])
@@ -1059,8 +1227,22 @@ def render_comparison_mode() -> None:
         st.markdown("#### Confidence")
         st.bar_chart(chart_data[["confidence"]])
     with chart_cols[4]:
-        st.markdown("#### Domain")
+        st.markdown("#### Domain sim.")
         st.bar_chart(chart_data[["applicability_similarity"]])
+    with chart_cols[5]:
+        if "suggested_f" in chart_data and chart_data["suggested_f"].notna().any():
+            st.markdown("#### Suggested F")
+            st.bar_chart(chart_data[["suggested_f"]])
+        else:
+            st.markdown("#### Suggested F")
+            st.caption("N/A")
+    with chart_cols[6]:
+        if "suggested_ka" in chart_data and chart_data["suggested_ka"].notna().any():
+            st.markdown("#### Suggested ka")
+            st.bar_chart(chart_data[["suggested_ka"]])
+        else:
+            st.markdown("#### Suggested ka")
+            st.caption("N/A")
 
     st.markdown("#### Short interpretation")
     most_polar = comparison.sort_values("tpsa", ascending=False).iloc[0]
@@ -1160,8 +1342,47 @@ def render_pk_nca_simulator() -> None:
         "Flip-flop kinetics example",
         "Insufficient sampling example",
     ]
-    preset_name = st.selectbox("Teaching preset", preset_options)
+    preset_col, drug_col = st.columns([1.4, 1])
+    with preset_col:
+        preset_name = st.selectbox("Teaching preset", preset_options)
+    with drug_col:
+        drug_options = ["None (use preset)"] + [v["name"] for v in DRUG_PK_PROFILES.values()]
+        drug_choice = st.selectbox(
+            "Load literature drug profile",
+            drug_options,
+            help="Loads approximate literature teaching values. NOT a model prediction. Verify before scientific use.",
+        )
     preset = PK_PRESETS[preset_name]
+    if drug_choice != "None (use preset)":
+        _dkey = next(k for k, v in DRUG_PK_PROFILES.items() if v["name"] == drug_choice)
+        _dp = DRUG_PK_PROFILES[_dkey]
+        st.markdown(
+            _html_card(
+                f"Literature teaching profile: {_dp['name']}",
+                f"Route: {_dp['route']} &nbsp;|&nbsp; Dose: {_dp['teaching_dose_mg']} mg &nbsp;|&nbsp; "
+                f"Approx. F: {_dp['approximate_f']} &nbsp;|&nbsp; "
+                f"Approx. t½: {_dp['approximate_half_life_h']} h &nbsp;|&nbsp; "
+                f"Approx. Vd: {_dp['approximate_vd_l_kg']} L/kg &nbsp;|&nbsp; "
+                f"Source: {_dp['source_note']}",
+            ),
+            unsafe_allow_html=True,
+        )
+        for _w in _dp["warning_notes"]:
+            st.info(f"Teaching note: {_w}")
+        preset = {
+            "route": _dp["route"],
+            "dose": _dp["teaching_dose_mg"],
+            "vd": _dp["approximate_vd_l_kg"] * 70.0,
+            "kel": _dp["approximate_kel_per_h"],
+            "ka": _dp["approximate_ka_per_h"],
+            "bioavailability": _dp["approximate_f"],
+            "infusion_duration": 1.0,
+            "duration": max(24.0, _dp["approximate_half_life_h"] * 6.0),
+            "interval": max(0.25, _dp["approximate_half_life_h"] / 20.0),
+            "n_terminal_points": 4,
+            "method": "linear_up_log_down",
+            "note": f"Literature teaching values for {_dp['name']}. {_dp['source_note']}",
+        }
     st.markdown(f'<div class="section-note">{preset["note"]}</div>', unsafe_allow_html=True)
 
     param_cols = st.columns(7)
@@ -1328,24 +1549,15 @@ def render_evidence_library() -> None:
     with st.expander("Reviewer Summary", expanded=True):
         reviewer_cols = st.columns(3)
         reviewer_cols[0].markdown(
-            _html_card(
-                "AI/ML recruiter",
-                "Built a deployed AI-health style product with molecular validation, model prediction, uncertainty, applicability-domain checks, comparison workflow, health checks, and automated screenshots.",
-            ),
+            _html_card("AI/ML recruiter", REVIEWER_SUMMARY["ai_ml_recruiter"]),
             unsafe_allow_html=True,
         )
         reviewer_cols[1].markdown(
-            _html_card(
-                "Computational pharmacology scientist",
-                "Uses a public Caco-2 benchmark, RDKit descriptors/fingerprints, scaffold validation, explainability, and explicit reliability boundaries for early ADME screening.",
-            ),
+            _html_card("Computational pharmacology scientist", REVIEWER_SUMMARY["computational_pharmacology"]),
             unsafe_allow_html=True,
         )
         reviewer_cols[2].markdown(
-            _html_card(
-                "Academic PI",
-                "Separates in vitro permeability modeling from educational PK/NCA simulation, preserves scientific limitations, and lays out the path toward human PK validation.",
-            ),
+            _html_card("Academic PI / PK reviewer", REVIEWER_SUMMARY["academic_pi"]),
             unsafe_allow_html=True,
         )
     with st.expander("External validation roadmap toward human PK", expanded=True):

@@ -1,4 +1,4 @@
-"""Capture recruiter-review screenshots for the Streamlit app."""
+"""Capture fresh review screenshots for the Streamlit app."""
 
 from __future__ import annotations
 
@@ -11,20 +11,31 @@ from playwright.sync_api import Page, TimeoutError, expect, sync_playwright
 BASE_URL = "http://127.0.0.1:8507"
 OUTPUT_DIR = Path("docs") / "screenshots"
 
+SCREENSHOT_ROWS = [
+    ("01_home_dashboard.png", "Home dashboard", "Overall product framing, hero cards, workflow, and metric cards.", "GitHub README, recruiter demo"),
+    ("02_how_to_use_and_app_overview.png", "How-to-use and app overview", "Beginner workflow, what the platform does, and scientific grounding.", "GitHub README, student onboarding"),
+    ("03_molecule_input_aspirin.png", "Aspirin molecule input/profile", "SVG rendering, canonical SMILES, teaching note, and key properties.", "PI review, recruiter demo"),
+    ("04_descriptor_summary.png", "Descriptor summary", "Descriptor table and medicinal chemistry interpretation.", "PK/ADME reviewer"),
+    ("05_permeability_prediction.png", "Permeability prediction", "Prediction card, probability, model source, and decision-support interpretation.", "AI-health recruiter, PI review"),
+    ("06_confidence_and_uncertainty.png", "Confidence and uncertainty", "Confidence score, entropy, and reliability explanation.", "Model-risk review"),
+    ("07_applicability_domain.png", "Applicability domain", "Tanimoto similarity, nearest neighbor, and domain-shift explanation.", "Academic reviewer"),
+    ("08_explainable_ai.png", "Explainable AI", "Descriptor driver table, SHAP-style interpretation, and chemical caveats.", "Explainability portfolio"),
+    ("09_molecule_comparison.png", "Molecule comparison", "Aspirin, caffeine, ibuprofen, metformin, and propranolol comparison dashboard.", "LinkedIn, recruiter demo"),
+    ("10_pk_nca_simulator.png", "PK/NCA simulator", "Oral preset, parameters, metric cards, and concentration-time plot.", "PI review, PK teaching"),
+    ("11_permeability_to_pk_impact.png", "Permeability-to-PK impact", "F/ka assumption mapping, AUC/Cmax/Tmax/CL-F ratios, and interpretations.", "PK/ADME reviewer"),
+    ("12_pk_impact_comparison_curves.png", "PK impact comparison curves", "Reference vs permeability-adjusted oral concentration-time curves.", "PK teaching, PI review"),
+    ("13_equations_iv_oral_ivive.png", "Equations, IV/oral, IVIVE", "PK equations, route explanation, and IVIVE boundary.", "Academic review"),
+    ("14_report_download_section.png", "Report download section", "Markdown report and CSV download buttons.", "GitHub README, reviewer handoff"),
+    ("15_scientific_limitations_and_reviewer_summary.png", "Scientific limits and reviewer summary", "Reviewer summary and external validation roadmap.", "PI review, scientific rigor"),
+]
 
-SCREENSHOTS = [
-    ("01_home_dashboard.png", "Home / landing dashboard"),
-    ("02_molecule_input_aspirin.png", "Molecule input section using Aspirin"),
-    ("03_descriptor_summary.png", "Descriptor Summary tab"),
-    ("04_permeability_prediction.png", "Permeability Prediction tab"),
-    ("05_confidence.png", "Confidence tab"),
-    ("06_applicability_domain.png", "Applicability Domain tab"),
-    ("07_explainable_ai.png", "Explainable AI tab"),
-    ("08_scientific_limitations.png", "Scientific Limitations tab"),
-    ("09_pk_nca_simulator.png", "PK/NCA Simulator overview"),
-    ("10_pk_nca_results.png", "PK/NCA concentration-time graph and NCA table"),
-    ("11_molecule_comparison.png", "Molecule comparison mode"),
-    ("12_example_molecule_library.png", "Example molecule library / search-filter view"),
+BAD_TEXT = [
+    "model artifact missing",
+    "Baseline model artifact not found",
+    "Molecule image could not be rendered",
+    "then\nthen",
+    "Select at least two molecules to compare.",
+    "SHAP figure files are not present",
 ]
 
 
@@ -34,13 +45,17 @@ def wait_for_app(page: Page) -> None:
     page.wait_for_timeout(2500)
 
 
-def screenshot(page: Page, filename: str) -> None:
-    page.screenshot(path=str(OUTPUT_DIR / filename), full_page=True)
+def capture(page: Page, filename: str, issues: list[str], full_page: bool = True) -> None:
+    text = page.locator("body").inner_text(timeout=15000)
+    for bad in BAD_TEXT:
+        if bad in text:
+            issues.append(f"`{filename}` contains problematic text: `{bad}`")
+    page.screenshot(path=str(OUTPUT_DIR / filename), full_page=full_page)
 
 
 def click_tab(page: Page, name: str) -> None:
     page.get_by_role("tab", name=re.compile(f"^{re.escape(name)}$")).click(timeout=15000)
-    page.wait_for_timeout(1200)
+    page.wait_for_timeout(1400)
 
 
 def navigate(page: Page, label: str) -> None:
@@ -48,124 +63,123 @@ def navigate(page: Page, label: str) -> None:
     page.wait_for_timeout(2500)
 
 
-def set_pk_oral_demo(page: Page) -> None:
-    page.get_by_text("PK/NCA Simulator", exact=True).click(timeout=15000)
-    page.wait_for_timeout(2000)
-    expect(page.get_by_text("Oral fast absorption").first).to_be_visible(timeout=15000)
-    page.wait_for_timeout(1200)
+def expand_if_collapsed(page: Page, label: str) -> None:
+    try:
+        button = page.get_by_role("button", name=re.compile(re.escape(label))).first
+        button.click(timeout=5000)
+        page.wait_for_timeout(700)
+    except TimeoutError:
+        return
 
 
-def write_index(missing: list[str]) -> None:
-    rows = [
+def scroll_to_text(page: Page, text: str) -> None:
+    page.get_by_text(text, exact=False).first.scroll_into_view_if_needed(timeout=15000)
+    page.wait_for_timeout(800)
+
+
+def write_readme() -> None:
+    lines = [
         "# Screenshot Index",
         "",
-        "These screenshots were generated from the local Streamlit app for GitHub, LinkedIn, recruiter, and academic review materials.",
+        "Fresh screenshots generated from the local Streamlit app after the educational PK/ADME explanation and report-download upgrades.",
         "",
-        "| File | Shows | Recommended use | Notes |",
+        "| Screenshot | App section shown | What a reviewer should look at | Recommended use |",
         "|---|---|---|---|",
     ]
-    uses = {
-        "01_home_dashboard.png": "GitHub README, recruiter demo, LinkedIn hero",
-        "02_molecule_input_aspirin.png": "GitHub README, PI review",
-        "03_descriptor_summary.png": "PK/ADME reviewer detail",
-        "04_permeability_prediction.png": "Recruiter demo, AI-health review",
-        "05_confidence.png": "AI-health review, model-risk discussion",
-        "06_applicability_domain.png": "Academic review, model reliability",
-        "07_explainable_ai.png": "Explainability portfolio evidence",
-        "08_scientific_limitations.png": "Scientific rigor and responsible-use review",
-        "09_pk_nca_simulator.png": "PK education demo",
-        "10_pk_nca_results.png": "PK/NCA result review",
-        "11_molecule_comparison.png": "Recruiter demo, LinkedIn carousel",
-        "12_example_molecule_library.png": "GitHub README, demo setup",
-    }
-    for filename, description in SCREENSHOTS:
-        note = "Captured" if filename not in missing else "Missing; see MISSING_FEATURES.md"
-        rows.append(f"| `{filename}` | {description} | {uses[filename]} | {note} |")
-    rows.extend(
+    for filename, section, reviewer_note, use in SCREENSHOT_ROWS:
+        lines.append(f"| `{filename}` | {section} | {reviewer_note} | {use} |")
+    lines.extend(
         [
             "",
-            "Scientific boundary: screenshots show Caco-2 permeability risk prediction and educational PK/NCA simulation only. They do not show validated clinical PK, PBPK, safety, efficacy, dose, or regulatory prediction.",
+            "Scientific boundary: screenshots show Caco-2 permeability prediction and educational PK/NCA/permeability-to-PK impact simulation only. They do not show validated human PK, clinical, regulatory, safety, efficacy, or dose prediction.",
             "",
         ]
     )
-    (OUTPUT_DIR / "README.md").write_text("\n".join(rows), encoding="utf-8")
+    (OUTPUT_DIR / "README.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_missing(missing: list[str], errors: list[str]) -> None:
-    path = OUTPUT_DIR / "MISSING_FEATURES.md"
-    if not missing:
+def write_qc(issues: list[str]) -> None:
+    path = OUTPUT_DIR / "SCREENSHOT_QC_ISSUES.md"
+    missing = [filename for filename, *_ in SCREENSHOT_ROWS if not (OUTPUT_DIR / filename).exists()]
+    for filename in missing:
+        issues.append(f"`{filename}` was not created.")
+
+    if not issues:
         if path.exists():
             path.unlink()
         return
+
     lines = [
-        "# Missing Screenshot Features",
+        "# Screenshot QC Issues",
         "",
-        "The following screenshots could not be captured automatically.",
+        "The following screenshot problems were detected automatically.",
+        "",
+        *[f"- {issue}" for issue in issues],
+        "",
+        "Proposed fix: open the affected app section locally, correct the broken UI/content state, and rerun `scripts/capture_streamlit_screenshots.py`.",
         "",
     ]
-    for item in missing:
-        lines.append(f"- `{item}`")
-    if errors:
-        lines.extend(["", "## Automation Notes", ""])
-        lines.extend(f"- {error}" for error in errors)
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    missing: list[str] = []
-    errors: list[str] = []
+    issues: list[str] = []
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1440, "height": 1200}, device_scale_factor=1)
+        page = browser.new_page(viewport={"width": 1500, "height": 1250}, device_scale_factor=1)
         try:
             wait_for_app(page)
-            screenshot(page, "01_home_dashboard.png")
-            screenshot(page, "02_molecule_input_aspirin.png")
+            capture(page, "01_home_dashboard.png", issues)
+
+            expand_if_collapsed(page, "How to use this app")
+            expand_if_collapsed(page, "Scientific guide")
+            capture(page, "02_how_to_use_and_app_overview.png", issues)
+
+            capture(page, "03_molecule_input_aspirin.png", issues)
 
             for tab, filename in [
-                ("Descriptors", "03_descriptor_summary.png"),
-                ("Permeability", "04_permeability_prediction.png"),
-                ("Confidence", "05_confidence.png"),
-                ("Applicability Domain", "06_applicability_domain.png"),
-                ("Explainable AI", "07_explainable_ai.png"),
-                ("Limits", "08_scientific_limitations.png"),
+                ("Descriptors", "04_descriptor_summary.png"),
+                ("Permeability", "05_permeability_prediction.png"),
+                ("Confidence", "06_confidence_and_uncertainty.png"),
+                ("Applicability Domain", "07_applicability_domain.png"),
+                ("Explainable AI", "08_explainable_ai.png"),
             ]:
-                try:
-                    click_tab(page, tab)
-                    screenshot(page, filename)
-                except TimeoutError as error:
-                    missing.append(filename)
-                    errors.append(f"{filename}: {error}")
+                click_tab(page, tab)
+                capture(page, filename, issues)
 
-            try:
-                set_pk_oral_demo(page)
-                screenshot(page, "09_pk_nca_simulator.png")
-                click_tab(page, "Tables")
-                screenshot(page, "10_pk_nca_results.png")
-            except TimeoutError as error:
-                missing.extend(["09_pk_nca_simulator.png", "10_pk_nca_results.png"])
-                errors.append(f"PK/NCA screenshots: {error}")
+            navigate(page, "Molecule Comparison")
+            capture(page, "09_molecule_comparison.png", issues)
 
-            try:
-                navigate(page, "Molecule Comparison")
-                screenshot(page, "11_molecule_comparison.png")
-            except TimeoutError as error:
-                missing.append("11_molecule_comparison.png")
-                errors.append(f"11_molecule_comparison.png: {error}")
+            navigate(page, "PK/NCA Simulator")
+            expect(page.get_by_text("Oral fast absorption").first).to_be_visible(timeout=15000)
+            capture(page, "10_pk_nca_simulator.png", issues)
 
-            try:
-                navigate(page, "ADME Workbench")
-                screenshot(page, "12_example_molecule_library.png")
-            except TimeoutError as error:
-                missing.append("12_example_molecule_library.png")
-                errors.append(f"12_example_molecule_library.png: {error}")
+            navigate(page, "ADME Workbench")
+            click_tab(page, "PK Impact")
+            capture(page, "11_permeability_to_pk_impact.png", issues)
+            scroll_to_text(page, "Reference vs permeability-adjusted oral PK curves")
+            capture(page, "12_pk_impact_comparison_curves.png", issues, full_page=False)
+
+            page.goto(BASE_URL, wait_until="domcontentloaded")
+            page.wait_for_timeout(1800)
+            expand_if_collapsed(page, "PK equations used")
+            expand_if_collapsed(page, "IV bolus vs oral dosing")
+            expand_if_collapsed(page, "What IVIVE would require")
+            capture(page, "13_equations_iv_oral_ivive.png", issues)
+
+            click_tab(page, "PK Impact")
+            scroll_to_text(page, "Download markdown report")
+            capture(page, "14_report_download_section.png", issues, full_page=False)
+
+            navigate(page, "Evidence & Limits")
+            capture(page, "15_scientific_limitations_and_reviewer_summary.png", issues)
         finally:
             browser.close()
 
-    write_index(missing)
-    write_missing(missing, errors)
+    write_readme()
+    write_qc(issues)
 
 
 if __name__ == "__main__":

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 from pathlib import Path
 
+import joblib
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
-import joblib
-from rdkit.Chem import Draw
+from rdkit.Chem.Draw import rdMolDraw2D
 from sklearn.metrics import RocCurveDisplay
 
 from adme_predictor.config import REPORTS_DIR
@@ -22,12 +24,15 @@ MODEL_CARD_DOC_PATH = Path("docs") / "model_card.md"
 
 
 def render_molecule_png(smiles: str, size: tuple[int, int] = (450, 300)) -> bytes:
-    """Render a SMILES string as PNG bytes using RDKit."""
+    """Render a SMILES string as PNG bytes using RDKit's headless Cairo drawer."""
     mol = mol_from_smiles(smiles)
-    image = Draw.MolToImage(mol, size=size)
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    return buffer.getvalue()
+    prepared_mol = rdMolDraw2D.PrepareMolForDrawing(mol)
+
+    width, height = size
+    drawer = rdMolDraw2D.MolDraw2DCairo(width, height)
+    drawer.DrawMolecule(prepared_mol)
+    drawer.FinishDrawing()
+    return bytes(drawer.GetDrawingText())
 
 
 def build_prediction_report(

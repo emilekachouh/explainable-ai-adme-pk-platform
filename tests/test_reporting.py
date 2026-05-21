@@ -8,6 +8,13 @@ def test_molecule_rendering_returns_svg_text():
     assert len(image) > 100
 
 
+def test_aspirin_svg_rendering_returns_non_empty_svg():
+    image = render_molecule_svg("CC(=O)Oc1ccccc1C(=O)O")
+
+    assert "<svg" in image
+    assert "</svg>" in image
+
+
 def test_downloadable_report_generation_contains_scientific_sections():
     report = build_prediction_report(
         "CCO",

@@ -35,6 +35,8 @@ data/processed/
 data/interim/
 models/*.pkl
 models/*.joblib
+!models/baseline_permeability_classifier.joblib
+!models/baseline_feature_columns.joblib
 models/*.h5
 models/*.pt
 models/*.pth

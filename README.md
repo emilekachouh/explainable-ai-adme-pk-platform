@@ -13,7 +13,8 @@ This project is a computational pharmacology portfolio platform for early ADME s
 - SHAP explainability for global and local model interpretation
 - Confidence scoring and prediction entropy
 - Applicability-domain warnings using nearest-neighbor chemical similarity
-- Streamlit app with molecule rendering and downloadable reports
+- Modern Streamlit workbench with SVG molecule rendering, searchable examples, comparison mode, and downloadable reports
+- Deployment-safe model loading with included lightweight classifier artifacts and descriptor fallback
 - Educational PK/NCA simulator for AUC, AUMC, MRT, CL, CL/F, Vss, lambda_z, half-life, and extrapolated AUC
 - Unit-tested Python package structure
 
@@ -34,14 +35,82 @@ Run tests:
 python -m pytest
 ```
 
+## Live App
+
+Live demo URL: `<add Streamlit Cloud URL after deployment>`
+
+The deployed app is intended as an interactive portfolio demonstration for explainable ADME screening and PK/NCA education. It should not be presented as a clinical, regulatory, safety, efficacy, dose, or validated human PK prediction tool.
+
+## Recruiter and Reviewer Demo Value
+
+The app is designed to communicate both software and scientific judgment:
+
+- AI-health recruiters can see a deployed, interactive ML product rather than a static notebook.
+- Biotech hiring managers can review model outputs, confidence, applicability domain, and scientific boundaries in one workflow.
+- PK/ADME reviewers can inspect descriptors, Caco-2 interpretation, scaffold-validation rationale, and PK/NCA assumptions.
+- The interface demonstrates deployment readiness: health checks, cached operations, graceful fallbacks, SVG rendering, and downloadable reports.
+
 ## App Screenshots
 
-Add screenshots before public release:
+Add or update screenshots before public release:
 
-- `docs/screenshots/app_molecule_input.png`
-- `docs/screenshots/app_prediction_summary.png`
-- `docs/screenshots/app_explainability.png`
+- `docs/screenshots/adme_workbench.png`
+- `docs/screenshots/molecule_comparison.png`
 - `docs/screenshots/pk_nca_simulator.png`
+- `docs/screenshots/evidence_limits.png`
+
+## Streamlit Demo Experience
+
+The app has been upgraded from a basic SMILES form into a structured workbench:
+
+- Sidebar navigation for ADME screening, molecule comparison, PK/NCA simulation, and evidence review
+- Clean page title, scientific subtitle, metric cards, tabs, expanders, and warning states
+- SVG molecule rendering to avoid GUI/X11 dependencies on Streamlit Cloud
+- Cached descriptor, prediction, applicability-domain, and rendering calls for lightweight deployment
+- Graceful fallback messages when optional model artifacts or SHAP images are unavailable
+
+## Model Loading and Deployment Behavior
+
+The Streamlit app expects two lightweight artifacts:
+
+- `models/baseline_permeability_classifier.joblib`
+- `models/baseline_feature_columns.joblib`
+
+These are intentionally allowed in git because they are small enough for deployment and prevent the app from showing an empty "train the model first" state. If artifacts are unavailable, the app attempts first-run training through the existing public-data pipeline. If that also fails, it uses a transparent descriptor-based educational fallback so the demo remains usable while clearly labeling the prediction source.
+
+## Example Molecule Library
+
+The app includes **172 RDKit-canonicalized example molecules** organized by category:
+
+- Analgesics/NSAIDs
+- CNS drugs
+- Cardiovascular drugs
+- Antibiotics
+- Antivirals
+- Oncology drugs
+- Steroids/hormones
+- GI drugs
+- Immunosuppressants
+- Natural products/cannabinoids
+- PK teaching examples
+- Highly polar/low permeability examples
+- Lipophilic/high permeability examples
+
+Examples include caffeine, aspirin, ibuprofen, acetaminophen, naproxen, diclofenac, warfarin, beta blockers, calcium-channel blockers, statins, antibiotics, antivirals, oncology drugs, steroids, cannabinoids, and PK teaching compounds. Molecules with difficult peptide/biologic representations were skipped rather than represented with invented SMILES.
+
+## Comparison Mode
+
+The molecule comparison workflow lets users select 2-5 example molecules and compare:
+
+- Molecular weight
+- LogP
+- TPSA
+- HBD/HBA
+- Predicted Caco-2 permeability class
+- Prediction confidence
+- Applicability-domain nearest-neighbor similarity
+
+The app displays both a table and bar plots, followed by a short interpretation focused on polarity, lipophilicity, molecular size, and model-domain caution.
 
 ## Dataset
 
@@ -97,6 +166,17 @@ The PK/NCA module is educational and mechanistic. It simulates:
 - IV infusion profiles
 
 It calculates AUC, AUMC, MRT/MBRT, lambda_z, half-life, extrapolated AUC, percent extrapolated AUC, Cmax, Tmax, CL, CL/F, Vz, and Vss where appropriate. It does not convert Caco-2 permeability into validated human PK.
+
+The simulator includes teaching presets:
+
+- IV bolus high clearance compound
+- IV bolus low clearance compound
+- Oral fast absorption
+- Oral slow absorption
+- Flip-flop kinetics example
+- Insufficient sampling example
+
+Educational expanders explain AUC, AUMC, MRT/MBRT, CL, CL/F, and Vss in beginner-friendly language while preserving the boundary that all outputs depend on assumed parameters.
 
 ## Repository Map
 

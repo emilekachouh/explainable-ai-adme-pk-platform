@@ -1,4 +1,4 @@
-"""Streamlit application for the Explainable AI ADME-PK Platform."""
+"""Streamlit application for the Caco-2 Permeability Screening + PK Education Platform."""
 
 from __future__ import annotations
 
@@ -901,11 +901,11 @@ def _render_hero() -> None:
     st.markdown(
         """
         <div class="hero">
-            <h1>Explainable AI ADME-PK Platform</h1>
+            <h1>Caco-2 Permeability Screening + PK Education Platform</h1>
             <p>
-                Real-data Caco-2 permeability prediction with explainability,
-                applicability-domain checks, molecule comparison, and educational
-                PK/NCA simulation.
+                Structure-based Caco-2 permeability classification with descriptor interpretation,
+                confidence and applicability-domain checks, batch screening,
+                and educational PK/NCA absorption sensitivity simulation.
             </p>
         </div>
         """,
@@ -917,7 +917,7 @@ def _render_hero() -> None:
         _workflow_card("Chemistry", "RDKit descriptors + fingerprints", "Calculate physicochemical and substructure features."),
         _workflow_card("Model", "Caco-2 permeability classifier", "Predict median-threshold permeability class."),
         _workflow_card("Trust", "Confidence + applicability domain", "Separate decisive predictions from extrapolation risk."),
-        _workflow_card("Explanation", "SHAP / feature importance", "Translate model behavior into chemical hypotheses."),
+        _workflow_card("Explanation", "Descriptor-based interpretation", "Translate model behavior into chemical hypotheses via descriptor threshold profiles."),
         _workflow_card("Education", "PK/NCA simulator", "Teach exposure metrics from explicit assumptions."),
     ]
     st.markdown('<div class="workflow-strip">' + "".join(workflow_cards) + "</div>", unsafe_allow_html=True)
@@ -925,7 +925,7 @@ def _render_hero() -> None:
         _hero_metric("906", "processed Caco-2 compounds"),
         _hero_metric(str(EXAMPLE_MOLECULE_COUNT), "validated example molecules"),
         _hero_metric("2 validation modes", "random + scaffold split"),
-        _hero_metric("Explainability", "SHAP + uncertainty"),
+        _hero_metric("Explainability", "descriptor drivers + uncertainty"),
         _hero_metric("PK/NCA", "educational simulation module"),
     ]
     st.markdown('<div class="metric-grid">' + "".join(metrics) + "</div>", unsafe_allow_html=True)
@@ -950,7 +950,7 @@ def _render_learning_panel() -> None:
 
             **Why permeability matters:** low permeability can limit absorption even when a molecule is potent. Permeability also interacts with solubility, ionization, transporters, metabolism, dose, and formulation.
 
-            **SHAP interpretation:** SHAP is an explainability method that attributes a model prediction across input features. In this app, descriptor and fingerprint signals should be read as model behavior, not proof of biological mechanism.
+            **Descriptor interpretation:** the interpretation panel shows descriptor values relative to rule-based thresholds, identifying which physicochemical features likely drove the prediction. This is a rule-based heuristic, not a SHAP explanation. Saved SHAP artifacts (generated offline) can be viewed at the bottom of the interpretation panel.
 
             **Confidence score:** confidence is derived from probability margin and entropy. It tells you whether the classifier is decisive for this model, not whether a compound is clinically certain to behave a certain way.
 
@@ -1131,7 +1131,7 @@ def render_adme_screening() -> None:
             "Permeability",
             "Confidence",
             "Applicability Domain",
-            "Explainable AI",
+            "Descriptor Interpretation",
             "Absorption Sensitivity",
             "Limits",
         ]
@@ -1231,7 +1231,12 @@ def render_adme_screening() -> None:
             st.markdown(_html_card("Why applicability domain matters", domain_text) + _html_card("What to do if outside domain", action_text), unsafe_allow_html=True)
 
     with workflow_tabs[4]:
-        st.subheader("Explainable AI Evidence")
+        st.subheader("Descriptor-Based Model Interpretation")
+        st.caption(
+            "This panel summarizes descriptor-based interpretation and model-facing feature signals. "
+            "The bar chart shows raw descriptor values compared to permeability-relevant thresholds — "
+            "it is NOT a SHAP explanation. Optional SHAP artifact figures are shown below if saved offline."
+        )
 
         high_drivers, low_drivers = _driver_analysis(descriptors, float(prediction["high_permeability_probability"]) if prediction else 0.5)
 
@@ -1259,7 +1264,7 @@ def render_adme_screening() -> None:
             _fig, _ax = plt.subplots(figsize=(6, 3.8))
             _bars = _ax.barh(_feat_labels, _raw_vals, color=_colors, edgecolor="#e2e8f0", linewidth=0.6)
             _ax.set_xlabel("Value (MW scaled ÷ 10)", fontsize=8.5)
-            _ax.set_title(f"Descriptor profile — {selected_name}", fontsize=9.5, fontweight="bold")
+            _ax.set_title(f"Descriptor threshold profile — {selected_name} (rule-based, not SHAP)", fontsize=9.0, fontweight="bold")
             _ax.tick_params(axis="both", labelsize=8)
             for bar, val in zip(_bars, _raw_vals):
                 _ax.text(max(val + 0.3, 0.3), bar.get_y() + bar.get_height() / 2, f"{val:.1f}", va="center", fontsize=7.5, color="#334155")
@@ -1271,7 +1276,7 @@ def render_adme_screening() -> None:
             st.caption("Green = below threshold (permeability-favorable); Red = above threshold (potential liability). Thresholds: TPSA ≤ 90, HBD ≤ 3, HBA ≤ 7, LogP ≤ 4.5, MW/10 ≤ 50, RotBonds ≤ 7.")
 
         with _xai_col2:
-            st.markdown(_html_card("Global vs local explanation", "Global feature importance summarizes model behavior across training samples. Local explanation (shown here) asks which descriptor signals are most relevant for <em>this</em> molecule. SHAP explains model behavior, not causal biology."), unsafe_allow_html=True)
+            st.markdown(_html_card("About this panel", "This shows descriptor values relative to rule-based thresholds. It is <strong>not a SHAP explanation</strong>. The driver analysis below (what pushed prediction high/low) is derived from descriptor heuristics, not computed SHAP values. If saved SHAP artifacts exist, they appear at the bottom of this panel."), unsafe_allow_html=True)
             st.markdown(
                 _html_card(
                     "What pushed this prediction toward high permeability",
@@ -1288,8 +1293,11 @@ def render_adme_screening() -> None:
             )
             st.markdown(
                 _html_card(
-                    "What SHAP cannot prove",
-                    "SHAP attribution explains model behavior, not causal biology. A feature ranked as important by SHAP does not mean that descriptor is the biological rate-limiting factor for permeability in vivo. Transporter involvement, solubility, ionization state, and first-pass metabolism are not captured here.",
+                    "Interpretation limits",
+                    "Descriptor-based drivers explain model-facing signals, not causal biology. "
+                    "A descriptor above a threshold does not prove it is the rate-limiting factor for permeability in vivo. "
+                    "Transporter involvement, solubility, ionization state, and first-pass metabolism are not captured. "
+                    "SHAP would give model-attributed feature contributions — use saved SHAP artifacts for that level of analysis.",
                 ),
                 unsafe_allow_html=True,
             )
@@ -1870,7 +1878,7 @@ def render_comparison_mode() -> None:
         st.markdown(
             _html_card(
                 "How to read this table",
-                "Scenario F and ka are illustrative starting assumptions, NOT model-predicted bioavailability values. "
+                "Scenario F and ka are illustrative starting assumptions, NOT human bioavailability estimates. "
                 "They are not measured values. A higher F maps to higher simulated AUC and lower apparent CL/F, "
                 "while true CL is unchanged. Higher ka primarily shifts Cmax timing (Tmax) and curve shape.",
             ),
@@ -2226,21 +2234,48 @@ def render_pk_nca_simulator() -> None:
             _mdpk_df = pd.DataFrame(_mdpk_rows).rename(columns={"drug": "molecule"})
             _mdpk_df = compute_drug_ratios(_mdpk_df, _mdpk_ref)
 
-            # Overlay plots
-            _overlay_df = pd.DataFrame(_mdpk_profiles)
-            _overlay_df.index.name = "time (h)"
-            _pk_tabs = st.tabs(["Linear C-t overlay", "Semi-log C-t overlay", "Parameters", "Ratios vs reference"])
+            # Overlay plots — build merged DataFrame from per-drug Series
+            # All Series are indexed by time; join on the common time grid
+            _overlay_series = list(_mdpk_profiles.values())
+            if _overlay_series:
+                _overlay_df = pd.concat(_overlay_series, axis=1)
+                _overlay_df.index.name = "time (h)"
+            else:
+                _overlay_df = pd.DataFrame()
+
+            # Detect if all scenario curves are nearly identical (Mode A with similar probs)
+            _all_identical = False
+            if _overlay_df is not None and not _overlay_df.empty and len(_overlay_df.columns) > 1:
+                _max_spread = float(_overlay_df.max(axis=1) - _overlay_df.min(axis=1)).max() if hasattr(float, '__call__') else 0
+                try:
+                    _max_spread = (_overlay_df.max(axis=1) - _overlay_df.min(axis=1)).max()
+                    _all_identical = _max_spread < 0.1
+                except Exception:
+                    _all_identical = False
+
+            _pk_tabs = st.tabs(["Scenario overlay (linear)", "Semi-log overlay", "Parameters", "Ratios vs reference"])
             with _pk_tabs[0]:
-                st.line_chart(_overlay_df)
-                st.caption(
-                    f"Mode: {_mdpk_mode[0]}. "
-                    "All curves are educational simulations — not observed clinical PK data. "
-                    + ("Literature teaching preset values are approximate; verify before scientific use." if "B" in _mdpk_mode else "")
-                )
+                if _overlay_df is not None and not _overlay_df.empty:
+                    st.line_chart(_overlay_df)
+                    if _all_identical:
+                        st.warning(
+                            "Curves overlap substantially because similar permeability probabilities map to "
+                            "similar scenario F/ka assumptions. Switch to Mode B (literature preset) for "
+                            "drug-specific curves, or manually edit F values."
+                        )
+                    st.caption(
+                        f"Mode: {_mdpk_mode[0]}. Each line = one selected drug. "
+                        "All curves are educational simulations — not observed clinical PK data. "
+                        + ("Literature teaching preset values are approximate; verify before scientific use." if "B" in _mdpk_mode else
+                           "In Mode A, curves may overlap when drugs have similar Caco-2 probabilities.")
+                    )
+                else:
+                    st.info("No profiles could be computed.")
             with _pk_tabs[1]:
-                _semi_df = np.log10(_overlay_df.clip(lower=1e-10))
-                st.line_chart(_semi_df)
-                st.caption("Semi-log scale (log₁₀ concentration). Parallel terminal slopes = same true CL by design (Mode A/C).")
+                if _overlay_df is not None and not _overlay_df.empty:
+                    _semi_df = np.log10(_overlay_df.clip(lower=1e-10))
+                    st.line_chart(_semi_df)
+                    st.caption("Semi-log scale (log₁₀ concentration). Parallel terminal slopes confirm true CL is identical across drugs in Mode A/C.")
             with _pk_tabs[2]:
                 _param_disp = _mdpk_df[["molecule", "mode", "F", "ka", "Vd", "true_CL", "auc", "cmax", "tmax", "clf", "half_life"]].rename(columns={
                     "molecule": "Drug", "mode": "Mode", "auc": "AUC", "cmax": "Cmax",
@@ -2312,7 +2347,7 @@ def render_multi_drug_pk_comparison() -> None:
     selected = st.multiselect(
         "Molecules to compare",
         filtered["label"].tolist(),
-        default=available_defaults[:4],
+        default=available_defaults[:5],
         max_selections=5,
         key="mdpk_select",
     )
@@ -2411,12 +2446,22 @@ def render_multi_drug_pk_comparison() -> None:
 
     # --- Literature teaching preset note ---
     if lit_profile_names:
+        _lit_details = []
+        for _lit_name in lit_profile_names:
+            _profile = next(
+                (p for p in DRUG_PK_PROFILES.values() if p["name"].lower() == _lit_name.lower()),
+                None,
+            )
+            if _profile is not None:
+                _note = _profile.get("f_literature_note") or "; ".join(_profile.get("warning_notes", []))
+                _lit_details.append(f"<li><strong>{_profile['name']}:</strong> {_note}</li>")
         st.markdown(
             _html_card(
                 "Literature teaching presets available",
                 f"<strong>{', '.join(lit_profile_names)}</strong> have curated approximate literature teaching "
                 "profiles in this platform. Switch to the PK/NCA Simulator and select a drug profile to load "
-                "those approximate values. They are labeled as teaching presets and are NOT observed clinical PK data.",
+                "those approximate values. They are labeled as teaching presets and are NOT observed clinical PK data."
+                + ("<ul>" + "".join(_lit_details) + "</ul>" if _lit_details else ""),
             ),
             unsafe_allow_html=True,
         )
@@ -2496,12 +2541,232 @@ def render_multi_drug_pk_comparison() -> None:
     st.caption(MULTI_DRUG_COMPARISON_DISCLAIMER)
 
 
+def render_batch_screening() -> None:
+    """Render pharma-style batch SMILES screening page."""
+    st.header("Batch Screening")
+    st.caption(
+        "Upload a CSV (columns: name, smiles, optional category) or paste SMILES below to screen "
+        "multiple compounds in one pass. Results are educational outputs from the Caco-2 permeability "
+        "classifier — not validated human PK or clinical predictions."
+    )
+
+    st.markdown(
+        _html_card(
+            "Scientific framing",
+            "Each molecule is independently validated, featurised, classified, and assessed for applicability-domain "
+            "membership. F/ka assumptions are mapped from the predicted permeability probability under the "
+            "educational scenario model. Batch results are screening-level signals, not regulatory submissions.",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # --- Input ---
+    input_col, help_col = st.columns([2, 1])
+    with input_col:
+        upload_tab, paste_tab = st.tabs(["Upload CSV", "Paste SMILES"])
+        raw_rows: list[tuple[str, str, str]] = []
+
+        with upload_tab:
+            uploaded = st.file_uploader(
+                "CSV with columns: name, smiles (and optionally category)",
+                type=["csv"],
+                key="batch_upload",
+            )
+            if uploaded is not None:
+                try:
+                    df_up = pd.read_csv(uploaded)
+                    df_up.columns = [c.strip().lower() for c in df_up.columns]
+                    if "smiles" not in df_up.columns:
+                        st.error("CSV must have a 'smiles' column.")
+                    else:
+                        for _, row in df_up.iterrows():
+                            name = str(row.get("name", f"Compound_{_ + 1}")).strip() or f"Compound_{_ + 1}"
+                            smi = str(row.get("smiles", "")).strip()
+                            cat = str(row.get("category", "Uploaded")).strip()
+                            raw_rows.append((name, smi, cat))
+                        st.success(f"Loaded {len(raw_rows)} rows from CSV.")
+                except Exception as exc:
+                    st.error(f"Failed to parse CSV: {exc}")
+
+        with paste_tab:
+            pasted = st.text_area(
+                "Paste SMILES (one per line, or: name,smiles per line)",
+                placeholder="aspirin,CC(=O)Oc1ccccc1C(=O)O\ncaffeine,Cn1cnc2c1c(=O)n(C)c(=O)n2C",
+                height=150,
+                key="batch_paste",
+            )
+            if pasted.strip():
+                for idx, line in enumerate(pasted.strip().splitlines(), start=1):
+                    parts = [p.strip() for p in line.split(",", 1)]
+                    if len(parts) == 2:
+                        raw_rows.append((parts[0], parts[1], "Pasted"))
+                    elif len(parts) == 1 and parts[0]:
+                        raw_rows.append((f"Compound_{idx}", parts[0], "Pasted"))
+
+    with help_col:
+        st.markdown(
+            _html_card(
+                "CSV format",
+                "<code>name,smiles,category</code><br>"
+                "aspirin,CC(=O)Oc1ccccc1C(=O)O,NSAIDs<br>"
+                "caffeine,Cn1cnc2c1c(=O)n(C)c(=O)n2C,Natural products<br>"
+                "<em>category column is optional.</em>",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    if not raw_rows:
+        st.info("Upload a CSV or paste SMILES above to begin batch screening.")
+        return
+
+    # --- Process ---
+    results: list[dict] = []
+    failures: list[dict] = []
+
+    progress = st.progress(0.0, text="Processing compounds…")
+    for i, (name, smi, cat) in enumerate(raw_rows):
+        progress.progress((i + 1) / len(raw_rows), text=f"Processing {name} ({i + 1}/{len(raw_rows)})…")
+        if not smi:
+            failures.append({"name": name, "smiles": smi, "error": "Empty SMILES"})
+            continue
+        try:
+            analysis = _analyze_smiles(smi)
+            pred, conf = _prediction_with_confidence(smi)
+            appl = _cached_applicability(smi)
+            pk_assump = permeability_to_pk_assumptions(
+                float(pred["high_permeability_probability"]) if pred else 0.5
+            )
+            desc = dict(analysis["descriptors"])
+            results.append({
+                "name": name,
+                "category": cat,
+                "canonical_smiles": str(analysis["canonical_smiles"]),
+                "MW": round(float(desc.get("molecular_weight", float("nan"))), 1),
+                "logP": round(float(desc.get("logp", float("nan"))), 2),
+                "TPSA": round(float(desc.get("tpsa", float("nan"))), 1),
+                "HBD": int(desc.get("hbd", 0)),
+                "HBA": int(desc.get("hba", 0)),
+                "predicted_class": str(pred["predicted_label"]) if pred else "N/A",
+                "probability": round(float(pred["high_permeability_probability"]), 3) if pred else float("nan"),
+                "confidence_cat": str(conf["confidence_category"]) if conf else "N/A",
+                "domain_cat": str(appl["applicability_category"]) if appl else "N/A",
+                "domain_sim": round(float(appl["nearest_neighbor_similarity"]), 3) if appl else float("nan"),
+                "scenario_f": round(float(pk_assump["scenario_f"]), 3),
+                "scenario_ka": round(float(pk_assump["scenario_ka"]), 3),
+            })
+        except Exception as exc:
+            failures.append({"name": name, "smiles": smi, "error": str(exc)})
+    progress.empty()
+
+    if not results and not failures:
+        st.warning("No compounds were processed.")
+        return
+
+    df_results = pd.DataFrame(results) if results else pd.DataFrame()
+    df_failures = pd.DataFrame(failures) if failures else pd.DataFrame()
+
+    # --- Summary metrics ---
+    st.markdown("#### Screening summary")
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    total = len(raw_rows)
+    valid = len(results)
+    invalid = len(failures)
+    if not df_results.empty:
+        high_perm = int((df_results["predicted_class"].str.contains("high", case=False)).sum())
+        low_perm = valid - high_perm
+        outside_dom = int((df_results["domain_cat"].str.contains("Outside", case=False, na=False)).sum())
+        high_conf = int((df_results["confidence_cat"].str.contains("High", case=False, na=False)).sum())
+    else:
+        high_perm = low_perm = outside_dom = high_conf = 0
+
+    m1.metric("Total", total)
+    m2.metric("Valid", valid)
+    m3.metric("Invalid", invalid)
+    m4.metric("High perm.", high_perm)
+    m5.metric("Low perm.", low_perm)
+    m6.metric("Outside domain", outside_dom)
+
+    if not df_results.empty:
+        # --- Filters ---
+        st.markdown("#### Filter results")
+        fcol1, fcol2 = st.columns(2)
+        with fcol1:
+            class_filter = st.selectbox(
+                "Predicted class",
+                ["All", "high permeability class", "low permeability class"],
+                key="batch_class_filter",
+            )
+        with fcol2:
+            conf_filter = st.selectbox(
+                "Confidence category",
+                ["All", "High confidence", "Medium confidence", "Low confidence"],
+                key="batch_conf_filter",
+            )
+
+        df_view = df_results.copy()
+        if class_filter != "All":
+            df_view = df_view[df_view["predicted_class"] == class_filter]
+        if conf_filter != "All":
+            df_view = df_view[df_view["confidence_cat"] == conf_filter]
+
+        st.dataframe(df_view, hide_index=True, use_container_width=True)
+
+        # --- Top-ranked lists ---
+        with st.expander("Top-ranked compound lists", expanded=False):
+            rank1, rank2, rank3 = st.columns(3)
+            with rank1:
+                st.caption("Most permeability-favorable (highest probability)")
+                top_fav = df_results.nlargest(5, "probability")[["name", "probability", "scenario_f"]]
+                st.dataframe(top_fav, hide_index=True)
+            with rank2:
+                st.caption("Most polarity-limited (highest TPSA)")
+                top_polar = df_results.nlargest(5, "TPSA")[["name", "TPSA", "predicted_class"]]
+                st.dataframe(top_polar, hide_index=True)
+            with rank3:
+                st.caption("Highest-confidence high-permeability")
+                top_hc = df_results[
+                    df_results["predicted_class"].str.contains("high", case=False, na=False)
+                    & df_results["confidence_cat"].str.contains("High", case=False, na=False)
+                ].head(5)[["name", "probability", "domain_cat"]]
+                st.dataframe(top_hc, hide_index=True)
+
+        # --- Downloads ---
+        st.markdown("---")
+        dl1, dl2 = st.columns(2)
+        with dl1:
+            st.download_button(
+                "Download results CSV",
+                df_results.to_csv(index=False),
+                file_name="batch_screening_results.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with dl2:
+            if not df_failures.empty:
+                st.download_button(
+                    "Download failures CSV",
+                    df_failures.to_csv(index=False),
+                    file_name="batch_screening_failures.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+    if not df_failures.empty:
+        with st.expander(f"Failed SMILES ({len(df_failures)})", expanded=False):
+            st.dataframe(df_failures, hide_index=True, use_container_width=True)
+
+    st.caption(
+        "Batch results are educational screening outputs from the Caco-2 permeability classifier. "
+        "They are not validated human PK or clinical predictions."
+    )
+
+
 def render_evidence_library() -> None:
     """Render project evidence and documentation summary."""
     st.header("Evidence, Documentation, and Responsible Use")
     st.markdown(
         "This page summarizes project artifacts: dataset documentation, model reports, "
-        "scaffold split comparison, SHAP interpretation, outlier analysis, and PK/NCA methods."
+        "scaffold split comparison, descriptor-based interpretation, outlier analysis, and PK/NCA methods."
     )
 
     # --- AI recruiter / product summary ---
@@ -2513,7 +2778,7 @@ def render_evidence_library() -> None:
             ("Validation beyond random split", "Bemis-Murcko scaffold split — test molecules have chemically distinct cores from training"),
             ("Uncertainty quantification", "Binary entropy confidence scoring + probability margin"),
             ("Applicability-domain checks", "Morgan/Tanimoto nearest-neighbor similarity to training set with explicit warnings"),
-            ("Explainable AI", "Descriptor driver analysis, SHAP-style interpretation, local driver bar charts"),
+            ("Descriptor Interpretation", "Rule-based descriptor driver analysis with threshold profiles; saved SHAP artifacts loadable offline"),
             ("Multi-drug comparison", "Select 2-5 molecules, compare AUC/Cmax/CL-F ratios under permeability-informed assumptions"),
             ("Experiment recommendation engine", "Rule-based per-molecule follow-up guidance for Caco-2, solubility, transporter assays"),
             ("Scientific safety boundaries", "No clinical, PBPK, dose, safety, or regulatory claim; explicit educational framing throughout"),
@@ -2539,7 +2804,7 @@ def render_evidence_library() -> None:
             ("Dataset", "TDC Caco-2 Wang benchmark, 906 processed molecules, experimentally measured log(Papp)"),
             ("Model type", "Trained XGBoost / Random Forest classifier and regressor"),
             ("Validation", "Random split AND Bemis-Murcko scaffold split — two modes reported side by side"),
-            ("Explainability", "SHAP global + local feature attribution; descriptor driver bar chart"),
+            ("Explainability", "Descriptor driver bar chart (rule-based); saved SHAP figures loadable offline from reports/figures/shap/"),
             ("Uncertainty", "Classifier probability confidence (margin from 0.5) + prediction entropy"),
             ("Applicability domain", "Morgan fingerprint Tanimoto similarity to nearest training neighbor"),
             ("Class threshold", "Dataset median log(Papp) — not a clinical cutoff"),
@@ -2586,7 +2851,7 @@ def render_evidence_library() -> None:
         ("Model card", PROJECT_ROOT / "docs" / "model_card.md"),
         ("Technical report", PROJECT_ROOT / "reports" / "technical_report.md"),
         ("Scaffold split comparison", PROJECT_ROOT / "reports" / "scaffold_split_comparison.md"),
-        ("SHAP interpretation", PROJECT_ROOT / "reports" / "shap_interpretation.md"),
+        ("Descriptor & SHAP analysis report", PROJECT_ROOT / "reports" / "shap_interpretation.md"),
         ("PK/NCA methods", PROJECT_ROOT / "reports" / "pk_nca_methods.md"),
     ]
     for title, path in docs:
@@ -2603,15 +2868,15 @@ def render_evidence_library() -> None:
 def main() -> None:
     """Render the app."""
     st.set_page_config(
-        page_title="Explainable AI ADME-PK Platform",
-        page_icon="🧬",
+        page_title="Caco-2 Screening + PK Education Platform",
+        page_icon=None,
         layout="wide",
     )
     _inject_css()
 
     with st.sidebar:
-        st.title("ADME-PK Platform")
-        st.caption("Explainable screening and PK/NCA education")
+        st.title("Caco-2 Permeability + PK Education")
+        st.caption("Structure-based Caco-2 classification with educational PK simulation")
         with st.expander("How to use this app", expanded=True):
             for index, step in enumerate(HOW_TO_USE_STEPS, start=1):
                 st.write(f"{index}. {step}")
@@ -2623,7 +2888,8 @@ def main() -> None:
         page = st.radio(
             "Navigate",
             [
-                "ADME Workbench",
+                "Single Molecule",
+                "Batch Screening",
                 "Molecule Comparison",
                 "Multi-Drug PK",
                 "PK/NCA Simulator",
@@ -2634,7 +2900,7 @@ def main() -> None:
         st.markdown("#### Model Trust")
         st.caption("Dataset: Caco-2 Wang, 906 mol")
         st.caption("Validation: random + scaffold split")
-        st.caption("Explainability: SHAP / descriptor drivers")
+        st.caption("Explainability: descriptor-based interpretation")
         st.caption("Domain check: Morgan/Tanimoto similarity")
         st.caption("Tests: 90+ automated")
         st.divider()
@@ -2650,8 +2916,10 @@ def main() -> None:
     _render_scientific_boundary()
     _render_learning_panel()
 
-    if page == "ADME Workbench":
+    if page == "Single Molecule":
         render_adme_screening()
+    elif page == "Batch Screening":
+        render_batch_screening()
     elif page == "Molecule Comparison":
         render_comparison_mode()
     elif page == "Multi-Drug PK":

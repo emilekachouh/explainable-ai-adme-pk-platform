@@ -14,7 +14,7 @@ An open-source platform for Caco-2 permeability classification from molecular st
 
 ## Live App
 
-**Live demo:** `<insert Streamlit Cloud URL after deployment>`
+**Live demo:** [https://explainable-ai-adme-pk-platform-bkcqshfeecxdftn9wdbtby.streamlit.app/](https://explainable-ai-adme-pk-platform-bkcqshfeecxdftn9wdbtby.streamlit.app/)
 
 ---
 
@@ -304,7 +304,7 @@ If you use this project, please cite:
   author = {Achou, Emile},
   title  = {Explainable Caco-2 Permeability Screening + PK Education Platform},
   year   = {2025},
-  url    = {https://github.com/<your-github-username>/ai-pbpk-adme-predictor},
+  url    = {https://github.com/emilekachouh/explainable-ai-adme-pk-platform},
 }
 ```
 

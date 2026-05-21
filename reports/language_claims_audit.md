@@ -1,7 +1,7 @@
 # Language and Claims Audit
 
 Automated and manual audit of potentially unsafe or misleading language across the repository.
-Last updated: 2026-05-21.
+Last updated: 2026-05-21 (final release pass — live URLs inserted, QC 74/74 PASS).
 
 ## Phrases audited
 

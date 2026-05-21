@@ -16,6 +16,11 @@ EXAMPLE_CATEGORIES = (
     'Natural products/cannabinoids',
     'Highly polar/low permeability examples',
     'Lipophilic/high permeability examples',
+    'Antihistamines',
+    'Diabetes/metabolic drugs',
+    'Antiepileptics',
+    'Respiratory drugs',
+    'Transporter-relevant examples',
 )
 
 EXAMPLE_MOLECULES = (
@@ -201,9 +206,9 @@ EXAMPLE_MOLECULES = (
     },
     {
         "category": 'CNS drugs',
-        "name": 'Escitalopram',
-        "smiles": 'CN(C)CCCC1(c2ccc(F)cc2)OCc2cc(C#N)ccc21',
-        "teaching_note": 'CNS-active example useful for discussing lipophilicity, polarity, and blood-brain exposure hypotheses.',
+        "name": 'Atomoxetine',
+        "smiles": 'CNC[C@H](Oc1ccccc1OC)c1ccccc1',
+        "teaching_note": 'Selective norepinephrine reuptake inhibitor; CYP2D6 substrate; useful for metabolic polymorphism teaching.',
     },
     {
         "category": 'CNS drugs',
@@ -825,9 +830,9 @@ EXAMPLE_MOLECULES = (
     },
     {
         "category": 'GI drugs',
-        "name": 'Esomeprazole',
-        "smiles": 'COc1ccc2nc(S(=O)Cc3ncc(C)c(OC)c3C)[nH]c2c1',
-        "teaching_note": 'GI pharmacology example for reviewing acid suppression, antiemetic, and gut-exposure chemistry.',
+        "name": 'Rabeprazole',
+        "smiles": 'COCCOc1ccc2nc(S(=O)Cc3ncc(C)c(OC)c3C)[nH]c2c1',
+        "teaching_note": 'Proton pump inhibitor; less CYP2C19-dependent than omeprazole; useful for enzyme-dependent clearance comparison.',
     },
     {
         "category": 'GI drugs',
@@ -1050,6 +1055,330 @@ EXAMPLE_MOLECULES = (
         "name": 'Toluene',
         "smiles": 'Cc1ccccc1',
         "teaching_note": 'Lipophilic example for discussing permeability-solubility tradeoffs.',
+    },
+    # -----------------------------------------------------------------------
+    # Antihistamines
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Antihistamines',
+        "name": 'Diphenhydramine',
+        "smiles": 'CN(C)CCOC(c1ccccc1)c1ccccc1',
+        "teaching_note": 'First-generation H1 antihistamine; high CNS penetration and sedation due to low polarity.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Chlorpheniramine',
+        "smiles": 'CN(C)CCC(c1ccncc1)c1ccc(Cl)cc1',
+        "teaching_note": 'First-generation antihistamine; useful for comparing sedating vs non-sedating H1 blockers.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Promethazine',
+        "smiles": 'CC(CN1c2ccccc2Sc2ccccc21)N(C)C',
+        "teaching_note": 'Phenothiazine-class antihistamine; demonstrates how scaffold affects sedation and CNS penetration.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Loratadine',
+        "smiles": 'CCOC(=O)N1CCC(=C2c3ccccc3CCc3ccccc32)CC1',
+        "teaching_note": 'Second-generation non-sedating antihistamine; lower CNS penetration vs first-generation analogs.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Hydroxyzine',
+        "smiles": 'OCCN1CCN(C(c2ccccc2)c2ccc(Cl)cc2)CC1',
+        "teaching_note": 'Piperazine-class H1 antagonist; metabolized to cetirizine; illustrates prodrug-active metabolite PK concepts.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Fexofenadine',
+        "smiles": 'CC(C)(C(=O)O)c1ccc(C(O)CCCN2CCC(C(O)(c3ccccc3)c3ccccc3)CC2)cc1',
+        "teaching_note": 'Third-generation antihistamine; polar zwitterion that exemplifies low CNS penetration and P-gp efflux.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Brompheniramine',
+        "smiles": 'CN(C)CCC(c1ccncc1)c1ccc(Br)cc1',
+        "teaching_note": 'Alkylamine antihistamine; bromo analog of chlorpheniramine for halogen-substitution teaching.',
+    },
+    {
+        "category": 'Antihistamines',
+        "name": 'Doxylamine',
+        "smiles": 'CN(C)CCOC(c1ccccc1)c1ccncc1',
+        "teaching_note": 'Ethanolamine antihistamine used for sleep and nausea; compare logP to diphenhydramine.',
+    },
+    # -----------------------------------------------------------------------
+    # Diabetes / metabolic drugs
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Diabetes/metabolic drugs',
+        "name": 'Tolbutamide',
+        "smiles": 'CCCCNC(=O)NS(=O)(=O)c1ccc(C)cc1',
+        "teaching_note": 'First-generation sulfonylurea; oral hypoglycemic agent; CYP2C9 substrate for PK variability teaching.',
+    },
+    {
+        "category": 'Diabetes/metabolic drugs',
+        "name": 'Chlorpropamide',
+        "smiles": 'CCCNC(=O)NS(=O)(=O)c1ccc(Cl)cc1',
+        "teaching_note": 'Sulfonylurea with long half-life (~36 h); contrast with tolbutamide for elimination kinetics teaching.',
+    },
+    {
+        "category": 'Diabetes/metabolic drugs',
+        "name": 'Acetohexamide',
+        "smiles": 'CC(=O)c1ccc(S(=O)(=O)NC(=O)NC2CCCCC2)cc1',
+        "teaching_note": 'Sulfonylurea pro-drug converted to active hydroxyhexamide; illustrates metabolite-active compound teaching.',
+    },
+    {
+        "category": 'Diabetes/metabolic drugs',
+        "name": 'Glyburide',
+        "smiles": 'COc1ccc(Cl)cc1C(=O)NCCc1ccc(S(=O)(=O)NC(=O)NC2CCCCC2)cc1',
+        "teaching_note": 'Second-generation sulfonylurea (glibenclamide); high protein binding; contrast with metformin for mechanism teaching.',
+    },
+    {
+        "category": 'Diabetes/metabolic drugs',
+        "name": 'Nateglinide',
+        "smiles": 'CC(C)Cc1ccc(C(NC(=O)C2CCCC2)C(=O)O)cc1',
+        "teaching_note": 'Amino acid-derived insulin secretagogue; rapid onset and short duration contrast with sulfonylureas.',
+    },
+    {
+        "category": 'Diabetes/metabolic drugs',
+        "name": 'Glipizide',
+        "smiles": 'Cc1cncc(CCC(=O)NS(=O)(=O)c2ccc(NC(=O)NCC3CCCCC3)cc2)c1',
+        "teaching_note": 'Second-generation sulfonylurea; high protein binding; extended-release formulation alters absorption rate teaching.',
+    },
+    # -----------------------------------------------------------------------
+    # Antiepileptics (beyond those already in CNS drugs)
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Antiepileptics',
+        "name": 'Ethosuximide',
+        "smiles": 'CCC1(C)CC(=O)NC1=O',
+        "teaching_note": 'Succinimide antiepileptic; small molecule with high F; useful for Vd and distribution teaching.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Oxcarbazepine',
+        "smiles": 'NC(=O)N1c2ccccc2CC(=O)c2ccccc21',
+        "teaching_note": 'Structural analog of carbamazepine; prodrug metabolized to active monohydroxy derivative.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Primidone',
+        "smiles": 'CCC1(c2ccccc2)C(=O)NCNC1=O',
+        "teaching_note": 'Antiepileptic metabolized to phenobarbital and PEMA; teaches metabolite formation PK concepts.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Vigabatrin',
+        "smiles": 'C=C(CCCN)C(=O)O',
+        "teaching_note": 'Irreversible GABA-transaminase inhibitor; highly polar with transporter-dependent CNS access.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Lacosamide',
+        "smiles": 'COC[C@@H](NC(C)=O)C(=O)NCc1ccccc1',
+        "teaching_note": 'Functionalized amino acid antiepileptic; well-absorbed; low protein binding; teaches linear PK.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Zonisamide',
+        "smiles": 'NS(=O)(=O)Cc1noc2ccccc12',
+        "teaching_note": 'Benzisoxazole sulfonamide antiepileptic; CYP3A4 substrate; compare t½ to other antiepileptics.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Topiramate',
+        "smiles": 'CC1(C)CCC2(COS(N)(=O)=O)OCC(O1)O2',
+        "teaching_note": 'Sulfamate-substituted fructose antiepileptic; carbonic anhydrase inhibitor; low protein binding.',
+    },
+    {
+        "category": 'Antiepileptics',
+        "name": 'Brivaracetam',
+        "smiles": 'CCC(CC)C(=O)N1CC[C@H](CC2CCCO2)CC1=O',
+        "teaching_note": 'SV2A ligand antiepileptic related to levetiracetam; good oral bioavailability; linear PK without active metabolites.',
+    },
+    # -----------------------------------------------------------------------
+    # Respiratory drugs
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Respiratory drugs',
+        "name": 'Salbutamol',
+        "smiles": 'CC(C)(C)NCC(O)c1cc(CO)ccc1O',
+        "teaching_note": 'Short-acting beta-2 agonist (SABA); high polarity limits oral bioavailability; inhaled form bypasses first-pass.',
+    },
+    {
+        "category": 'Respiratory drugs',
+        "name": 'Ipratropium',
+        "smiles": 'CC(C)C(CO)(C(=O)OC1C2CC[N+]1(C)C2)c1ccccc1',
+        "teaching_note": 'Quaternary ammonium anticholinergic bronchodilator; permanent charge limits GI absorption and CNS entry.',
+    },
+    {
+        "category": 'Respiratory drugs',
+        "name": 'Montelukast',
+        "smiles": 'O=C(O)Cc1ccc(CC2(c3cc(Cl)ccc3SCc3ccccc3)CC2)cc1',
+        "teaching_note": 'Leukotriene receptor antagonist; lipophilic acid; CYP2C9/3A4 substrate; high protein binding.',
+    },
+    {
+        "category": 'Respiratory drugs',
+        "name": 'Fluticasone',
+        "smiles": 'C[C@H]1C[C@H]2[C@@H]3CC(=O)[C@@]4(C)[C@H](CC[C@@]4(F)[C@@H]3[C@@H](F)C[C@@H]2O)[C@@H](C(=O)SCF)OC1=O',
+        "teaching_note": 'Inhaled corticosteroid; high hepatic first-pass limits systemic oral absorption; local pulmonary effect is key.',
+    },
+    {
+        "category": 'Respiratory drugs',
+        "name": 'Salmeterol',
+        "smiles": 'CC(C)(C)NCC(O)c1ccc(OCCOCCCOCc2ccccc2)cc1',
+        "teaching_note": 'Long-acting beta-2 agonist (LABA); lipophilic anchor prolongs receptor interaction; minimal systemic absorption.',
+    },
+    # -----------------------------------------------------------------------
+    # Transporter-relevant examples
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Transporter-relevant examples',
+        "name": 'Probenecid',
+        "smiles": 'CCCN(CCC)S(=O)(=O)c1ccc(C(=O)O)cc1',
+        "teaching_note": 'OAT1/OAT3 inhibitor; used to study renal tubular secretion; classic teaching molecule for transporter interaction.',
+    },
+    {
+        "category": 'Transporter-relevant examples',
+        "name": 'Para-aminohippuric acid',
+        "smiles": 'Nc1ccc(C(=O)NCC(=O)O)cc1',
+        "teaching_note": 'PAH is secreted by renal OAT1; used to measure effective renal plasma flow; key transporter teaching example.',
+    },
+    {
+        "category": 'Transporter-relevant examples',
+        "name": 'Adenosine',
+        "smiles": 'Nc1ncnc2c1ncn2[C@@H]1O[C@H](CO)[C@@H](O)[C@H]1O',
+        "teaching_note": 'Nucleoside with ENT (equilibrative nucleoside transporter) affinity; hydrophilic; poor passive permeability.',
+    },
+    {
+        "category": 'Transporter-relevant examples',
+        "name": 'Cimetidine',
+        "smiles": 'CN(C)/C(=N/C#N)NCCSc1ccc[nH]1',
+        "teaching_note": 'H2 antagonist and OCT2/MATE1 inhibitor; key teaching example for DDI via renal transport pathways.',
+    },
+    {
+        "category": 'Transporter-relevant examples',
+        "name": 'Eltrombopag',
+        "smiles": 'Cc1ccc(-n2c(=O)c3cc(C(=O)O)ccc3n(-c3ccc(C)cc3)c2=O)cc1',
+        "teaching_note": 'OATP1B1 and UGT substrate; chelates divalent cations reducing absorption; illustrates complex transporter-mediated ADME.',
+    },
+    # -----------------------------------------------------------------------
+    # Additional CNS drugs (neurology/psychiatry not yet covered)
+    # -----------------------------------------------------------------------
+    {
+        "category": 'CNS drugs',
+        "name": 'Donepezil',
+        "smiles": 'COc1cc2c(cc1OC)CC1CC(=O)Nc3cc(OC)c(OC)cc3C1=C2',
+        "teaching_note": 'Acetylcholinesterase inhibitor for Alzheimer disease; lipophilic; CNS penetrant; CYP3A4/2D6 substrate.',
+    },
+    {
+        "category": 'CNS drugs',
+        "name": 'Rivastigmine',
+        "smiles": 'CCN(C)C(=O)Oc1cccc(C(C)NC)c1',
+        "teaching_note": 'Pseudo-irreversible cholinesterase inhibitor; available as transdermal patch; teaches formulation-dependent PK.',
+    },
+    {
+        "category": 'CNS drugs',
+        "name": 'Memantine',
+        "smiles": 'CC12CC(N)C(C)(C1)C(C)(C)C2',
+        "teaching_note": 'NMDA receptor antagonist; adamantane scaffold with high lipophilicity; renal excretion without extensive metabolism.',
+    },
+    # -----------------------------------------------------------------------
+    # Additional cardiovascular drugs
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Cardiovascular drugs',
+        "name": 'Epinephrine',
+        "smiles": 'CNCC(O)c1ccc(O)c(O)c1',
+        "teaching_note": 'Endogenous catecholamine; very high polarity limits oral bioavailability; IV/IM route bypasses first-pass.',
+    },
+    {
+        "category": 'Cardiovascular drugs',
+        "name": 'Dobutamine',
+        "smiles": 'CC(CCc1ccc(O)cc1)NCCc1ccc(O)c(O)c1',
+        "teaching_note": 'Synthetic catecholamine inotrope; IV use only due to extensive first-pass; teaches route-dependent exposure.',
+    },
+    {
+        "category": 'Cardiovascular drugs',
+        "name": 'Amiodarone',
+        "smiles": 'CCCCc1cc(I)c(OCCN(CC)CC)c(I)c1-c1ccc2oc(=O)ccc2c1',
+        "teaching_note": 'Class III antiarrhythmic; extremely long t½ (weeks); large Vd; iodine content; multiple CYP substrate/inhibitor.',
+    },
+    {
+        "category": 'Cardiovascular drugs',
+        "name": 'Flecainide',
+        "smiles": 'O=C(NC(CO)c1ccccc1)c1cc(OCC(F)(F)F)c2cccc(OCC(F)(F)F)c2n1',
+        "teaching_note": 'Class IC antiarrhythmic; fluorinated compound; moderate F (~70%); CYP2D6 substrate; demonstrates fluorine effects.',
+    },
+    {
+        "category": 'Cardiovascular drugs',
+        "name": 'Mexiletine',
+        "smiles": 'Cc1cccc(CC(C)N)c1C',
+        "teaching_note": 'Oral analog of lidocaine; basic amine with pHpartition-dependent absorption; teaches local anesthetic-class PK.',
+    },
+    # -----------------------------------------------------------------------
+    # Additional PK teaching examples
+    # -----------------------------------------------------------------------
+    {
+        "category": 'PK teaching examples',
+        "name": 'Cocaine',
+        "smiles": 'COC(=O)[C@H]1C(OC(=O)c2ccccc2)[C@H]2CC[C@@H]1[N+]2(C)C',
+        "teaching_note": 'Classic PK teaching molecule with short t½, high first-pass, and multiple routes of administration.',
+    },
+    {
+        "category": 'PK teaching examples',
+        "name": 'Pseudoephedrine',
+        "smiles": 'CNC(C)C(O)c1ccccc1',
+        "teaching_note": 'Sympathomimetic amine; good oral bioavailability; short t½; renal excretion pH-dependent teaching example.',
+    },
+    {
+        "category": 'PK teaching examples',
+        "name": 'Phenylephrine',
+        "smiles": 'CNCC(O)c1cccc(O)c1',
+        "teaching_note": 'Alpha-1 adrenergic agonist; extensive first-pass metabolism limits oral bioavailability to <5%; route comparison teaching.',
+    },
+    # -----------------------------------------------------------------------
+    # Additional highly polar / low permeability examples
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Highly polar/low permeability examples',
+        "name": 'Sucrose',
+        "smiles": 'OC[C@H]1O[C@@](CO)(O[C@@H]2O[C@H](CO)[C@@H](O)[C@H](O)[C@H]2O)[C@@H](O)[C@@H]1O',
+        "teaching_note": 'Disaccharide; high MW and polarity limit passive diffusion; used as a paracellular permeability marker.',
+    },
+    {
+        "category": 'Highly polar/low permeability examples',
+        "name": 'Taurine',
+        "smiles": 'NCCS(=O)(=O)O',
+        "teaching_note": 'Zwitterionic sulfonic acid; very high polarity and strong ionization result in near-zero passive permeability.',
+    },
+    {
+        "category": 'Highly polar/low permeability examples',
+        "name": 'Creatine',
+        "smiles": 'CN(CC(=O)O)C(=N)N',
+        "teaching_note": 'Guanidinium compound with high polarity; transported by creatine transporter (SLC6A8) rather than passive diffusion.',
+    },
+    # -----------------------------------------------------------------------
+    # Additional lipophilic / high permeability examples
+    # -----------------------------------------------------------------------
+    {
+        "category": 'Lipophilic/high permeability examples',
+        "name": 'Chlorpromazine',
+        "smiles": 'CN(C)CCCN1c2ccccc2Sc2ccc(Cl)cc21',
+        "teaching_note": 'Highly lipophilic phenothiazine antipsychotic; very large Vd and long t½ due to tissue binding.',
+    },
+    {
+        "category": 'Lipophilic/high permeability examples',
+        "name": 'Perphenazine',
+        "smiles": 'OCCN1CCN(CCCN2c3ccccc3Sc3ccc(Cl)cc32)CC1',
+        "teaching_note": 'Phenothiazine antipsychotic; high lipophilicity with large Vd; suitable for contrast with polar compounds.',
+    },
+    {
+        "category": 'Lipophilic/high permeability examples',
+        "name": 'Cholesterol',
+        "smiles": 'CC(C)CCC[C@@H](C)[C@H]1CC[C@H]2[C@@H]3CC=C4C[C@@H](O)CC[C@]4(C)[C@H]3CC[C@@]12C',
+        "teaching_note": 'Highly lipophilic sterol; excellent membrane permeability; extreme logP illustrates solubility-permeability tradeoffs.',
     },
 )
 

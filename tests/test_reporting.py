@@ -15,6 +15,11 @@ MOLECULE_SMILES = {
     "ibuprofen":   "CC(C)Cc1ccc(C(C)C(=O)O)cc1",
     "metformin":   "CN(C)C(=N)N=C(N)N",
     "propranolol": "CC(C)NCC(O)COc1cccc2ccccc12",
+    "atenolol":    "CC(C)NCC(O)COc1ccc(CC(N)=O)cc1",
+    "warfarin":    "CC(=O)CC(c1ccccc1)c1c(O)c2ccccc2oc1=O",
+    "diazepam":    "CN1C(=O)CN=C(c2ccccc2)c2cc(Cl)ccc21",
+    "midazolam":   "Cc1ncc2n1-c1ccc(Cl)cc1C(=NC2)c1ccccc1F",
+    "omeprazole":  "COc1ccc2c(c1)[nH]c(CS(=O)c1ncccc1C)n2",
 }
 # fmt: on
 

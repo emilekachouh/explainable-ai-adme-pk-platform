@@ -2075,6 +2075,149 @@ def render_pk_nca_simulator() -> None:
         use_container_width=True,
     )
 
+    # -----------------------------------------------------------------------
+    # Multi-Drug PK Curve Comparison (2–5 drugs on one plot)
+    # -----------------------------------------------------------------------
+    st.markdown("---")
+    st.subheader("Compare 2–5 Drugs on PK Curves")
+    st.caption(
+        "Overlay concentration-time curves for 2–5 drugs using the educational assumption framework. "
+        "No observed clinical data are bundled — all curves are educational simulations."
+    )
+
+    _mdpk_drug_options = [v["name"] for v in DRUG_PK_PROFILES.values()]
+    _mdpk_col1, _mdpk_col2 = st.columns([1.3, 1])
+    with _mdpk_col1:
+        _mdpk_selected = st.multiselect(
+            "Select 2–5 drugs for comparison",
+            _mdpk_drug_options,
+            default=_mdpk_drug_options[:3],
+            max_selections=5,
+            key="pknca_mdpk_select",
+        )
+    with _mdpk_col2:
+        _mdpk_mode = st.radio(
+            "Curve mode",
+            ["A: Permeability-derived F/ka", "B: Literature teaching preset", "C: Common preset parameters"],
+            key="pknca_mdpk_mode",
+        )
+        if _mdpk_selected:
+            _mdpk_ref = st.selectbox("Reference drug for ratios", _mdpk_selected, key="pknca_mdpk_ref")
+        else:
+            _mdpk_ref = None
+
+    if len(_mdpk_selected) >= 2 and _mdpk_ref:
+        # Common parameters for mode A/C
+        _mdpk_common_dose = 100.0
+        _mdpk_common_vd = 40.0
+        _mdpk_common_cl = 6.0
+
+        _mdpk_profiles: dict[str, pd.DataFrame] = {}
+        _mdpk_rows: list[dict] = []
+
+        for _drug_name in _mdpk_selected:
+            _dkey = next((k for k, v in DRUG_PK_PROFILES.items() if v["name"] == _drug_name), None)
+            if _dkey is None:
+                continue
+            _dp = DRUG_PK_PROFILES[_dkey]
+
+            if "B" in _mdpk_mode:
+                _f = float(_dp["approximate_f"])
+                _ka = float(_dp["approximate_ka_per_h"])
+                _vd = float(_dp["approximate_vd_l_kg"]) * 70.0
+                _kel = float(_dp["approximate_kel_per_h"])
+                _dose = float(_dp["teaching_dose_mg"])
+                _cl = _kel * _vd
+                _label = f"{_drug_name} (lit.)"
+            elif "A" in _mdpk_mode:
+                _smi = _dp.get("smiles", "")
+                _pred_tmp, _ = _prediction_with_confidence(_smi) if _smi else (None, None)
+                _prob_tmp = float(_pred_tmp["high_permeability_probability"]) if _pred_tmp else 0.5
+                _assumptions_tmp = permeability_to_pk_assumptions(_prob_tmp)
+                _f = _assumptions_tmp["adjusted_f"]
+                _ka = _assumptions_tmp["adjusted_ka"]
+                _vd = _mdpk_common_vd
+                _cl = _mdpk_common_cl
+                _kel = _cl / _vd
+                _dose = _mdpk_common_dose
+                _label = f"{_drug_name} (perm.)"
+            else:
+                _f = _dp.get("approximate_f", 0.7)
+                _ka = _dp.get("approximate_ka_per_h", 1.0)
+                _vd = _mdpk_common_vd
+                _cl = _mdpk_common_cl
+                _kel = _cl / _vd
+                _dose = _mdpk_common_dose
+                _label = f"{_drug_name} (common)"
+
+            try:
+                _p, _ = simulate_pk_profile(
+                    route="oral", dose=_dose, vd=_vd, kel=_kel,
+                    duration=48.0, interval=0.5, ka=_ka, bioavailability=_f,
+                )
+                _n, _ = calculate_nca(_p, dose=_dose, route="oral", bioavailability=_f)
+                _mdpk_profiles[_label] = _p.set_index("time")["concentration"].rename(_label)
+                _mdpk_rows.append({
+                    "drug": _drug_name, "mode": _mdpk_mode[0],
+                    "F": _f, "ka": _ka, "Vd": _vd, "true_CL": _cl,
+                    "auc": float(_n["auc_inf"]), "cmax": float(_n["cmax"]),
+                    "tmax": float(_n["tmax"]), "clf": float(_n["clearance"]),
+                    "half_life": float(_n["half_life"]),
+                })
+            except Exception:
+                pass
+
+        if _mdpk_profiles and _mdpk_rows:
+            from adme_predictor.fold_change import compute_drug_ratios, multi_drug_interpretation  # noqa: PLC0415
+
+            _mdpk_df = pd.DataFrame(_mdpk_rows).rename(columns={"drug": "molecule"})
+            _mdpk_df = compute_drug_ratios(_mdpk_df, _mdpk_ref)
+
+            # Overlay plots
+            _overlay_df = pd.DataFrame(_mdpk_profiles)
+            _overlay_df.index.name = "time (h)"
+            _pk_tabs = st.tabs(["Linear C-t overlay", "Semi-log C-t overlay", "Parameters", "Ratios vs reference"])
+            with _pk_tabs[0]:
+                st.line_chart(_overlay_df)
+                st.caption(
+                    f"Mode: {_mdpk_mode[0]}. "
+                    "All curves are educational simulations — not observed clinical PK data. "
+                    + ("Literature teaching preset values are approximate; verify before scientific use." if "B" in _mdpk_mode else "")
+                )
+            with _pk_tabs[1]:
+                _semi_df = np.log10(_overlay_df.clip(lower=1e-10))
+                st.line_chart(_semi_df)
+                st.caption("Semi-log scale (log₁₀ concentration). Parallel terminal slopes = same true CL by design (Mode A/C).")
+            with _pk_tabs[2]:
+                _param_disp = _mdpk_df[["molecule", "mode", "F", "ka", "Vd", "true_CL", "auc", "cmax", "tmax", "clf", "half_life"]].rename(columns={
+                    "molecule": "Drug", "mode": "Mode", "auc": "AUC", "cmax": "Cmax",
+                    "tmax": "Tmax", "clf": "CL/F", "half_life": "t½ (h)", "true_CL": "True CL",
+                })
+                for col in ["F", "ka", "Vd", "True CL", "AUC", "Cmax", "Tmax", "CL/F", "t½ (h)"]:
+                    if col in _param_disp:
+                        _param_disp[col] = _param_disp[col].map(lambda v: round(float(v), 3) if pd.notna(v) else None)
+                st.dataframe(_param_disp, hide_index=True, use_container_width=True)
+                st.warning("True CL is fixed across drugs in Mode A and C. Differences in AUC reflect F only.")
+            with _pk_tabs[3]:
+                _ratio_cols = ["molecule", "F", "ka", "auc_ratio", "cmax_ratio", "tmax_shift", "clf_ratio"]
+                _ratio_avail = [c for c in _ratio_cols if c in _mdpk_df.columns]
+                _ratio_disp = _mdpk_df[_ratio_avail].rename(columns={
+                    "molecule": "Drug", "auc_ratio": "AUC ratio", "cmax_ratio": "Cmax ratio",
+                    "tmax_shift": "Tmax shift (h)", "clf_ratio": "CL/F ratio",
+                })
+                for col in ["F", "ka", "AUC ratio", "Cmax ratio", "Tmax shift (h)", "CL/F ratio"]:
+                    if col in _ratio_disp:
+                        _ratio_disp[col] = _ratio_disp[col].map(lambda v: round(float(v), 3) if pd.notna(v) else None)
+                st.dataframe(_ratio_disp, hide_index=True, use_container_width=True)
+                st.caption(f"All ratios vs reference drug: {_mdpk_ref}. AUC_ratio = F_drug/F_ref under fixed dose/Vd/CL.")
+
+            _interps = multi_drug_interpretation(_mdpk_df, _mdpk_ref)
+            st.markdown(_html_card("Beginner interpretation", _interps["beginner"]), unsafe_allow_html=True)
+            st.markdown(_html_card("Pharmaceutics / PhD-level interpretation", _interps["phd"]), unsafe_allow_html=True)
+
+    elif len(_mdpk_selected) < 2:
+        st.info("Select at least 2 drugs to enable the overlay comparison.")
+
 
 _MULTI_DRUG_DEFAULTS = [
     "Aspirin - Analgesics/NSAIDs",

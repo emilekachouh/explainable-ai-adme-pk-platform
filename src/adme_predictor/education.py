@@ -191,7 +191,7 @@ F_SCENARIO_DISCLAIMER = (
 )
 
 F_EDUCATIONAL_NOTE = (
-    "Scenario F is an educational sensitivity assumption, not a model-predicted bioavailability value. "
+    "Scenario F is an educational sensitivity assumption, not a human bioavailability estimate. "
     "Use literature F values (if available) for reference and validate experimentally."
 )
 

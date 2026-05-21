@@ -22,18 +22,67 @@ FIGURES_DIR = REPORTS_DIR / "figures"
 MODEL_CARD_DOC_PATH = Path("docs") / "model_card.md"
 
 
+def _load_rdmoldraw2d() -> object:
+    """Load the rdMolDraw2D C++ extension via the most direct path available.
+
+    Streamlit Cloud (Linux) ships RDKit from PyPI.  The extension lives at
+    rdkit.Chem.Draw.rdMolDraw2D.  We import it via ``importlib.import_module``
+    which resolves the submodule directly after the parent packages are loaded,
+    avoiding any optional high-level Draw helpers (PIL, Cairo, Qt) that may be
+    absent on the cloud runtime.
+    """
+    import importlib
+
+    # Primary path: direct submodule import (works on all PyPI rdkit builds)
+    try:
+        return importlib.import_module("rdkit.Chem.Draw.rdMolDraw2D")
+    except ImportError:
+        pass
+
+    # Fallback: some RDKit installs expose it at rdkit.Chem.rdMolDraw2D
+    try:
+        return importlib.import_module("rdkit.Chem.rdMolDraw2D")
+    except ImportError:
+        pass
+
+    # Last resort: go through the Draw package public API
+    from rdkit.Chem.Draw import rdMolDraw2D  # noqa: PLC0415
+    return rdMolDraw2D
+
+
 def render_molecule_svg(smiles: str, size: tuple[int, int] = (450, 300)) -> str:
-    """Render a SMILES string as SVG text using RDKit's pure vector drawer."""
-    from rdkit.Chem.Draw import rdMolDraw2D
+    """Render a SMILES string as an SVG string using RDKit's pure vector drawer.
+
+    The function never imports PIL, Cairo, or any GUI toolkit.  It uses
+    ``MolDraw2DSVG`` which is a self-contained C++ SVG renderer and works on
+    headless cloud environments (Streamlit Cloud, GitHub Actions, etc.).
+
+    2D coordinates are generated explicitly via ``rdDepictor`` before the
+    drawing step so that ``PrepareMolForDrawing`` failure on unusual molecules
+    does not silently produce a blank image.
+    """
+    rdMolDraw2D = _load_rdmoldraw2d()
 
     mol = mol_from_smiles(smiles)
-    prepared_mol = rdMolDraw2D.PrepareMolForDrawing(mol)
+
+    # Ensure 2D coordinates exist — try the explicit depictor first
+    try:
+        from rdkit.Chem import rdDepictor  # noqa: PLC0415
+        rdDepictor.Compute2DCoords(mol)
+    except Exception:
+        try:
+            mol = rdMolDraw2D.PrepareMolForDrawing(mol)
+        except Exception:
+            pass  # draw without explicit 2D coords — RDKit will auto-assign
 
     width, height = size
     drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
-    drawer.DrawMolecule(prepared_mol)
+    drawer.DrawMolecule(mol)
     drawer.FinishDrawing()
-    return str(drawer.GetDrawingText())
+    svg = drawer.GetDrawingText()
+    if not svg or "<svg" not in svg:
+        raise RuntimeError(f"Empty SVG produced for SMILES: {smiles}")
+    return str(svg)
 
 
 def build_prediction_report(

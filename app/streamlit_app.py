@@ -27,14 +27,19 @@ from adme_predictor.education import (  # noqa: E402
     HOW_TO_USE_STEPS,
     IVIVE_EXPLANATION,
     IV_ORAL_EXPLANATION,
+    MULTI_DRUG_COMPARISON_DISCLAIMER,
     PK_EQUATIONS_TEXT,
     REFERENCES,
     REVIEWER_SUMMARY,
     SCIENTIFIC_BOUNDARIES,
     WHAT_THIS_APP_DOES,
     build_downloadable_report,
+    build_multi_drug_comparison_report,
     comparison_interpretations,
+    experiment_recommendation,
     explanation_for_level,
+    load_observed_pk_curve,
+    multi_drug_pk_comparison,
     permeability_to_pk_assumptions,
     pk_impact_interpretations,
     pk_impact_profiles,
@@ -321,6 +326,134 @@ def _inject_css() -> None:
         @media (max-width: 720px) {
             .workflow-strip, .metric-grid { grid-template-columns: 1fr; }
         }
+        .decision-summary {
+            border: 2px solid #2563eb;
+            border-radius: 10px;
+            padding: 1.05rem 1.15rem;
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+            margin: 0.65rem 0 0.9rem 0;
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
+        }
+        .decision-summary h3 {
+            color: #1e40af;
+            font-size: 1.04rem;
+            margin: 0 0 0.45rem 0;
+            font-weight: 700;
+        }
+        .ds-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+        }
+        .ds-badge {
+            border-radius: 6px;
+            padding: 0.26rem 0.52rem;
+            font-size: 0.83rem;
+            font-weight: 600;
+            border: 1px solid #bfdbfe;
+            background: #dbeafe;
+            color: #1e40af;
+            white-space: nowrap;
+        }
+        .ds-badge.high { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+        .ds-badge.low  { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
+        .ds-badge.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .formula-callout {
+            border: 1px solid #c7d2fe;
+            border-radius: 8px;
+            background: #eef2ff;
+            padding: 0.75rem 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.88rem;
+            color: #312e81;
+            margin: 0.45rem 0 0.75rem 0;
+            line-height: 1.65;
+        }
+        .three-step {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.65rem;
+            margin: 0.55rem 0 0.85rem 0;
+        }
+        .step-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 0.7rem 0.85rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+        }
+        .step-num {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #2563eb;
+            line-height: 1;
+        }
+        .step-arrow {
+            font-size: 1.2rem;
+            color: #93c5fd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .step-title {
+            font-size: 0.91rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0.2rem 0 0.15rem 0;
+        }
+        .step-body {
+            font-size: 0.81rem;
+            color: #64748b;
+            line-height: 1.3;
+        }
+        .report-preview {
+            border: 1px solid #d1fae5;
+            border-radius: 8px;
+            background: #f0fdf4;
+            padding: 0.85rem 1rem;
+            margin: 0.5rem 0 0.65rem 0;
+        }
+        .report-preview h4 {
+            color: #166534;
+            font-size: 0.97rem;
+            margin: 0 0 0.45rem 0;
+        }
+        .report-preview ul {
+            margin: 0;
+            padding-left: 1.25rem;
+            color: #166534;
+            font-size: 0.87rem;
+            line-height: 1.65;
+        }
+        .big-metric {
+            border: 2px solid #2563eb;
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            background: #eff6ff;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        .big-metric .bm-value {
+            font-size: 1.55rem;
+            font-weight: 800;
+            color: #1e40af;
+            line-height: 1.1;
+        }
+        .big-metric .bm-label {
+            font-size: 0.83rem;
+            color: #3b82f6;
+            margin-top: 0.2rem;
+        }
+        .compare-section-header {
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: #0f172a;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.35rem;
+            margin: 1.0rem 0 0.55rem 0;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -427,6 +560,223 @@ def _descriptor_status(descriptors: dict[str, object], applicability: dict[str, 
         level = "risk" if bool(applicability["outside_applicability_domain"]) else "good"
         pills.append(_status_pill(str(applicability["applicability_category"]), level))
     return '<div class="status-row">' + "".join(pills) + "</div>"
+
+
+def _driver_analysis(
+    descriptors: dict[str, object],
+    probability: float,
+) -> tuple[list[str], list[str]]:
+    """Return lists of descriptor signals that push the prediction high vs low."""
+    tpsa = float(descriptors["tpsa"])
+    hbd = float(descriptors["hbd"])
+    hba = float(descriptors["hba"])
+    logp = float(descriptors["logp"])
+    mw = float(descriptors["molecular_weight"])
+    rotatable = float(descriptors["rotatable_bonds"])
+
+    high_drivers: list[str] = []
+    low_drivers: list[str] = []
+
+    if tpsa <= 60:
+        high_drivers.append(f"Low TPSA ({tpsa:.1f}) reduces desolvation cost, supporting passive membrane crossing.")
+    elif tpsa > 120:
+        low_drivers.append(f"High TPSA ({tpsa:.1f}) is a strong polarity liability for passive permeability.")
+    elif tpsa > 90:
+        low_drivers.append(f"Elevated TPSA ({tpsa:.1f}) moderately increases polarity burden.")
+    else:
+        high_drivers.append(f"Moderate TPSA ({tpsa:.1f}) is in the acceptable passive-diffusion range.")
+
+    if 0.5 <= logp <= 4.5:
+        high_drivers.append(f"LogP {logp:.2f} is in the permeability-favorable window for membrane partitioning.")
+    elif logp > 5.0:
+        low_drivers.append(f"High LogP ({logp:.2f}) may raise assay-liability or solubility concerns despite lipophilicity.")
+    else:
+        low_drivers.append(f"Low LogP ({logp:.2f}) suggests hydrophilic character that can reduce membrane partitioning.")
+
+    if hbd <= 2:
+        high_drivers.append(f"Low HBD count ({int(hbd)}) reduces desolvation penalty for membrane crossing.")
+    elif hbd > 3:
+        low_drivers.append(f"High HBD count ({int(hbd)}) increases desolvation cost before membrane entry.")
+
+    if hba > 7:
+        low_drivers.append(f"High HBA count ({int(hba)}) adds to polarity and hydrogen-bonding burden.")
+
+    if mw <= 400:
+        high_drivers.append(f"Low molecular weight ({mw:.0f} Da) supports efficient membrane diffusion.")
+    elif mw > 500:
+        low_drivers.append(f"Molecular weight ({mw:.0f} Da) exceeds the common Lipinski threshold.")
+
+    if rotatable > 7:
+        low_drivers.append(f"High rotatable-bond count ({int(rotatable)}) can add conformational penalty.")
+    elif rotatable <= 4:
+        high_drivers.append(f"Low flexibility ({int(rotatable)} rotatable bonds) may reduce conformational cost.")
+
+    if not high_drivers:
+        high_drivers.append("No strong permeability-favorable descriptor signals identified for this query.")
+    if not low_drivers:
+        low_drivers.append("No strong permeability-liability descriptor signals identified for this query.")
+
+    return high_drivers, low_drivers
+
+
+def _render_decision_summary(
+    name: str,
+    category: str,
+    prediction: dict[str, object],
+    confidence: dict[str, object] | None,
+    applicability: dict[str, object] | None,
+    pk_table: pd.DataFrame,
+) -> None:
+    """Render a prominent decision-summary card above the workflow tabs."""
+    prob = float(prediction["high_permeability_probability"])
+    pred_label = str(prediction["predicted_label"])
+    conf_cat = str(confidence["confidence_category"]) if confidence else "N/A"
+    dom_cat = str(applicability["applicability_category"]) if applicability else "N/A"
+    outside_domain = bool(applicability["outside_applicability_domain"]) if applicability else False
+
+    assumptions = permeability_to_pk_assumptions(prob)
+    adj_f = assumptions["adjusted_f"]
+    adj_ka = assumptions["adjusted_ka"]
+
+    if len(pk_table) >= 2:
+        auc_ratio = float(pk_table.iloc[1]["AUC_ratio_vs_reference"])
+        cmax_ratio = float(pk_table.iloc[1]["Cmax_ratio_vs_reference"])
+        clf_ratio = float(pk_table.iloc[1]["CLF_ratio_vs_reference"])
+    else:
+        auc_ratio = cmax_ratio = clf_ratio = float("nan")
+
+    class_badge = "high" if pred_label == "high permeability class" else "low"
+    class_text = "High Caco-2 Permeability" if class_badge == "high" else "Low Caco-2 Permeability"
+
+    conf_badge = "high" if "high" in conf_cat.lower() else ("warn" if "low" in conf_cat.lower() else "")
+    domain_badge = "low" if outside_domain else ("warn" if "borderline" in dom_cat.lower() else "high")
+
+    exposure_dir = "increases" if auc_ratio > 1 else "decreases"
+    if outside_domain:
+        narrative = (
+            f"<strong>{name}</strong> is predicted as <em>{pred_label}</em> with {conf_cat.lower()} model confidence "
+            f"but <strong>outside-domain</strong> applicability (training-set similarity is low). "
+            f"Under the educational F/ka mapping, AUC ratio is <strong>{auc_ratio:.2f}x</strong> vs the reference scenario. "
+            "Treat as highly hypothesis-generating; prioritize experimental Caco-2 or MDCK permeability follow-up."
+        )
+    else:
+        narrative = (
+            f"<strong>{name}</strong> is predicted as <em>{pred_label}</em> "
+            f"(probability {prob:.2f}) with {conf_cat.lower()} model confidence and {dom_cat.lower()} "
+            f"applicability-domain similarity. Under the educational F/ka mapping (F = {adj_f:.2f}, "
+            f"ka = {adj_ka:.2f} h⁻¹), simulated exposure {exposure_dir} relative to the reference oral scenario "
+            f"(AUC ratio <strong>{auc_ratio:.2f}x</strong>, Cmax ratio <strong>{cmax_ratio:.2f}x</strong>, "
+            f"CL/F ratio <strong>{clf_ratio:.2f}x</strong>). "
+            "This is hypothesis-generating and should be validated experimentally."
+        )
+
+    badges = (
+        f'<span class="ds-badge {class_badge}">{class_text}</span>'
+        f'<span class="ds-badge {conf_badge}">Confidence: {conf_cat}</span>'
+        f'<span class="ds-badge {domain_badge}">Domain: {dom_cat}</span>'
+        f'<span class="ds-badge">{category}</span>'
+        f'<span class="ds-badge">p = {prob:.2f}</span>'
+        f'<span class="ds-badge">F = {adj_f:.2f}</span>'
+        f'<span class="ds-badge">ka = {adj_ka:.2f} h⁻¹</span>'
+        f'<span class="ds-badge">AUC ratio {auc_ratio:.2f}×</span>'
+        f'<span class="ds-badge">Cmax ratio {cmax_ratio:.2f}×</span>'
+        f'<span class="ds-badge">CL/F ratio {clf_ratio:.2f}×</span>'
+    )
+
+    st.markdown(
+        f'<div class="decision-summary">'
+        f'<h3>Decision Summary — {name}</h3>'
+        f'<div class="ds-row">{badges}</div>'
+        f'<p style="color:#1e3a8a;font-size:0.925rem;margin:0.4rem 0 0.25rem 0;">{narrative}</p>'
+        f'<p style="color:#64748b;font-size:0.82rem;margin:0;">'
+        "Recommended follow-up: experimental Caco-2 or MDCK permeability measurement with solubility, "
+        "ionization, and transporter context. True systemic CL is fixed by design; "
+        "permeability maps to F/ka absorption assumptions only, not CL."
+        f'</p></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _safe_style(
+    df: pd.DataFrame,
+    style_fn: object,
+    column: str,
+) -> object:
+    """Apply element-wise column styling with full pandas 1.x / 2.x / 3.x compatibility.
+
+    Falls back to the unstyled DataFrame if styling raises any exception so that
+    the comparison table never crashes on Streamlit Cloud.
+    """
+    try:
+        # pandas >= 2.1 renamed applymap → map; try map first
+        return df.style.map(style_fn, subset=[column])  # type: ignore[arg-type]
+    except Exception:
+        pass
+    try:
+        # pandas < 2.1 fallback
+        return df.style.applymap(style_fn, subset=[column])  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    # If both fail (e.g. very old or very new pandas with API change) return plain df
+    return df
+
+
+def _render_molecule_card_html(
+    name: str,
+    smiles: str,
+    category: str,
+    pred_label: str = "",
+    suggested_f: float | None = None,
+    suggested_ka: float | None = None,
+    svg_width: int = 260,
+    svg_height: int = 180,
+) -> str:
+    """Return an HTML card with an inline SVG molecule structure.
+
+    Safe for use inside st.components.v1.html or st.markdown(unsafe_allow_html=True).
+    Falls back to a SMILES code block if SVG rendering fails.
+    """
+    svg_body = ""
+    try:
+        svg = _cached_molecule_svg(smiles)
+        if svg:
+            # Embed the SVG inline, stripped of XML declaration if present
+            svg_clean = svg.replace('<?xml version=\'1.0\' encoding=\'iso-8859-1\'?>', "").strip()
+            svg_body = f'<div style="text-align:center;margin-bottom:0.3rem;">{svg_clean}</div>'
+    except Exception:
+        pass
+
+    if not svg_body:
+        svg_body = (
+            f'<div style="font-size:0.78rem;color:#64748b;background:#f8fafc;'
+            f'border-radius:6px;padding:0.5rem;margin-bottom:0.3rem;word-break:break-all;">'
+            f'{smiles}</div>'
+        )
+
+    class_color = "#166534" if "high" in pred_label.lower() else "#991b1b" if "low" in pred_label.lower() else "#475569"
+    class_bg = "#dcfce7" if "high" in pred_label.lower() else "#fee2e2" if "low" in pred_label.lower() else "#f1f5f9"
+    pred_badge = (
+        f'<span style="background:{class_bg};color:{class_color};border-radius:4px;'
+        f'padding:0.15rem 0.4rem;font-size:0.78rem;font-weight:600;">{pred_label}</span>'
+        if pred_label else ""
+    )
+    pk_line = ""
+    if suggested_f is not None and suggested_ka is not None:
+        pk_line = (
+            f'<div style="font-size:0.78rem;color:#64748b;margin-top:0.2rem;">'
+            f'F = {suggested_f:.2f} &nbsp;|&nbsp; ka = {suggested_ka:.2f} h⁻¹</div>'
+        )
+
+    return (
+        f'<div style="border:1px solid #e2e8f0;border-radius:8px;background:#ffffff;'
+        f'padding:0.6rem 0.7rem;box-shadow:0 2px 8px rgba(15,23,42,0.04);min-width:0;">'
+        f'<div style="font-weight:700;font-size:0.93rem;color:#0f172a;margin-bottom:0.2rem;">{name}</div>'
+        f'<div style="font-size:0.78rem;color:#64748b;margin-bottom:0.35rem;">{category}</div>'
+        f'{svg_body}'
+        f'{pred_badge}'
+        f'{pk_line}'
+        f'</div>'
+    )
 
 
 def _medchem_interpretation(name: str, descriptors: dict[str, object]) -> str:
@@ -621,18 +971,18 @@ def _render_molecule_structure(smiles: str) -> None:
     svg = _cached_molecule_svg(smiles)
     if svg:
         components.html(svg, height=315)
-        st.caption("2D molecular structure rendered as SVG")
+        st.caption("2D molecular structure (RDKit SVG)")
     else:
         try:
             analysis = _analyze_smiles(smiles)
             descriptors = dict(analysis["descriptors"])
-            st.markdown("#### Structure preview")
-            st.code(str(analysis["canonical_smiles"]), language="text")
-            st.caption(
-                "Renderer unavailable here; descriptor summary remains available for interpretation."
-            )
-            st.metric("MW", _metric_number(descriptors.get("molecular_weight"), 1))
-            st.metric("TPSA", _metric_number(descriptors.get("tpsa"), 1))
+            canonical = str(analysis["canonical_smiles"])
+            st.caption("SMILES (structure image not available in this environment)")
+            st.code(canonical, language="text")
+            col_mw, col_tpsa, col_logp = st.columns(3)
+            col_mw.metric("MW", _metric_number(descriptors.get("molecular_weight"), 1))
+            col_tpsa.metric("TPSA", _metric_number(descriptors.get("tpsa"), 1))
+            col_logp.metric("LogP", _metric_number(descriptors.get("logp"), 2))
         except ValueError:
             st.info("Structure preview unavailable for this input.")
 
@@ -750,6 +1100,26 @@ def render_adme_screening() -> None:
 
     st.markdown(_descriptor_status(descriptors, applicability), unsafe_allow_html=True)
 
+    if prediction is not None:
+        _pk_table_for_summary = pk_impact_table(float(prediction["high_permeability_probability"]))
+        _render_decision_summary(
+            selected_name, selected_category, prediction, confidence, applicability, _pk_table_for_summary
+        )
+
+        # --- Experiment recommendation ---
+        if confidence is not None and applicability is not None:
+            _exp_rec = experiment_recommendation(
+                name=selected_name,
+                probability=float(prediction["high_permeability_probability"]),
+                confidence_cat=str(confidence["confidence_category"]),
+                domain_cat=str(applicability["applicability_category"]),
+                outside_domain=bool(applicability["outside_applicability_domain"]),
+                descriptors=descriptors,
+            )
+            with st.expander("Recommended next experiment", expanded=False):
+                st.markdown(_html_card("Beginner recommendation", _exp_rec["beginner"]), unsafe_allow_html=True)
+                st.markdown(_html_card("Pharmaceutics / PhD-level recommendation", _exp_rec["phd"]), unsafe_allow_html=True)
+
     workflow_tabs = st.tabs(
         [
             "Descriptors",
@@ -857,16 +1227,71 @@ def render_adme_screening() -> None:
 
     with workflow_tabs[4]:
         st.subheader("Explainable AI Evidence")
-        st.markdown(_html_card("Global vs local explanation", "Global feature importance summarizes broad model behavior across samples. Local explanation asks which features are most relevant for a selected molecule. SHAP explains model behavior, not causal biology."), unsafe_allow_html=True)
+
+        high_drivers, low_drivers = _driver_analysis(descriptors, float(prediction["high_permeability_probability"]) if prediction else 0.5)
+
+        _xai_col1, _xai_col2 = st.columns([1.1, 1.0])
+
+        with _xai_col1:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            _feat_labels = ["TPSA", "HBD", "HBA", "LogP", "MW / 10", "Rotatable\nbonds"]
+            _raw_vals = [
+                float(descriptors["tpsa"]),
+                float(descriptors["hbd"]),
+                float(descriptors["hba"]),
+                float(descriptors["logp"]),
+                float(descriptors["molecular_weight"]) / 10.0,
+                float(descriptors["rotatable_bonds"]),
+            ]
+            _thresholds = [90, 3, 7, 4.5, 50.0, 7]
+            _colors = [
+                "#16a34a" if _raw_vals[i] <= _thresholds[i] else "#dc2626"
+                for i in range(len(_raw_vals))
+            ]
+            _fig, _ax = plt.subplots(figsize=(6, 3.8))
+            _bars = _ax.barh(_feat_labels, _raw_vals, color=_colors, edgecolor="#e2e8f0", linewidth=0.6)
+            _ax.set_xlabel("Value (MW scaled ÷ 10)", fontsize=8.5)
+            _ax.set_title(f"Descriptor profile — {selected_name}", fontsize=9.5, fontweight="bold")
+            _ax.tick_params(axis="both", labelsize=8)
+            for bar, val in zip(_bars, _raw_vals):
+                _ax.text(max(val + 0.3, 0.3), bar.get_y() + bar.get_height() / 2, f"{val:.1f}", va="center", fontsize=7.5, color="#334155")
+            _ax.spines["top"].set_visible(False)
+            _ax.spines["right"].set_visible(False)
+            _fig.tight_layout()
+            st.pyplot(_fig, clear_figure=True)
+            plt.close(_fig)
+            st.caption("Green = below threshold (permeability-favorable); Red = above threshold (potential liability). Thresholds: TPSA ≤ 90, HBD ≤ 3, HBA ≤ 7, LogP ≤ 4.5, MW/10 ≤ 50, RotBonds ≤ 7.")
+
+        with _xai_col2:
+            st.markdown(_html_card("Global vs local explanation", "Global feature importance summarizes model behavior across training samples. Local explanation (shown here) asks which descriptor signals are most relevant for <em>this</em> molecule. SHAP explains model behavior, not causal biology."), unsafe_allow_html=True)
+            st.markdown(
+                _html_card(
+                    "What pushed this prediction toward high permeability",
+                    "<ul style='margin:0;padding-left:1.2rem;'>" + "".join(f"<li>{d}</li>" for d in high_drivers) + "</ul>",
+                ),
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                _html_card(
+                    "What pushed this prediction toward low permeability",
+                    "<ul style='margin:0;padding-left:1.2rem;'>" + "".join(f"<li>{d}</li>" for d in low_drivers) + "</ul>",
+                ),
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                _html_card(
+                    "What SHAP cannot prove",
+                    "SHAP attribution explains model behavior, not causal biology. A feature ranked as important by SHAP does not mean that descriptor is the biological rate-limiting factor for permeability in vivo. Transporter involvement, solubility, ionization state, and first-pass metabolism are not captured here.",
+                ),
+                unsafe_allow_html=True,
+            )
+
         st.markdown("#### Descriptor driver table")
         st.dataframe(_feature_importance_table(descriptors), hide_index=True, use_container_width=True)
-        st.markdown(
-            _html_card(
-                "What this suggests chemically",
-                "High TPSA and hydrogen-bonding capacity usually reduce passive permeability; logP can support membrane partitioning but may introduce solubility issues; molecular weight and flexibility can reduce diffusion efficiency.",
-            ),
-            unsafe_allow_html=True,
-        )
+
         shap_dir = PROJECT_ROOT / "reports" / "figures" / "shap"
         local_candidates = [
             shap_dir / "local_aspirin_classifier.png",
@@ -880,7 +1305,7 @@ def render_adme_screening() -> None:
                 st.image(str(path), caption=path.name)
                 shown = True
         if not shown:
-            st.info("The descriptor driver table above provides the lightweight interpretability view for this deployment. Optional saved SHAP figures can be generated offline for deeper model-audit materials.")
+            st.caption("Optional saved SHAP figures can be generated offline for deeper model-audit materials. The descriptor driver profile above provides the lightweight XAI view.")
 
     with workflow_tabs[5]:
         st.subheader("Permeability to PK Impact — Centerpiece Analysis")
@@ -890,41 +1315,45 @@ def render_adme_screening() -> None:
             probability = float(prediction["high_permeability_probability"])
             assumptions = permeability_to_pk_assumptions(probability)
 
-            # --- Molecule summary banner ---
-            conf_cat = str(confidence["confidence_category"]) if confidence else "N/A"
-            dom_cat = str(applicability["applicability_category"]) if applicability else "N/A"
+            # --- 3-step workflow strip ---
             st.markdown(
-                _html_card(
-                    f"Selected molecule: {selected_name}",
-                    f"Predicted class: <strong>{prediction['predicted_label']}</strong> &nbsp;|&nbsp; "
-                    f"Probability: <strong>{probability:.2f}</strong> &nbsp;|&nbsp; "
-                    f"Confidence: <strong>{conf_cat}</strong> &nbsp;|&nbsp; "
-                    f"Domain: <strong>{dom_cat}</strong>",
-                ),
+                '<div class="three-step">'
+                '<div class="step-card"><div class="step-num">1</div>'
+                '<div class="step-title">Prediction</div>'
+                '<div class="step-body">Caco-2 permeability class + probability from the ML model</div></div>'
+                '<div class="step-card"><div class="step-num">&#8594;</div>'
+                '<div class="step-title">F / ka Mapping</div>'
+                '<div class="step-body">Probability mapped to adjusted bioavailability (F) and absorption rate (ka)</div></div>'
+                '<div class="step-card"><div class="step-num">2</div>'
+                '<div class="step-title">PK Curve Impact</div>'
+                '<div class="step-body">Compare reference vs permeability-adjusted oral C-t profile and NCA metrics</div></div>'
+                '</div>',
                 unsafe_allow_html=True,
             )
 
-            # --- Equation card ---
-            eq_col, map_col = st.columns([1, 1.6])
-            with eq_col:
+            # --- Formula callout + assumption mapping ---
+            formula_col, map_col = st.columns([1.0, 1.5])
+            with formula_col:
                 st.markdown(
-                    _html_card(
-                        "Core equations",
-                        "AUC<sub>oral</sub> = F &times; Dose / CL<br>"
-                        "CL/F = Dose / AUC<br>"
-                        "k<sub>el</sub> = CL / Vd<br>"
-                        "<small>True CL is held constant by design.</small>",
-                    ),
+                    '<div class="formula-callout">'
+                    "AUC<sub>oral</sub> = F &times; Dose / CL<br>"
+                    "CL/F &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= Dose / AUC<br>"
+                    "k<sub>el</sub> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= CL / Vd<br>"
+                    "<hr style='margin:0.35rem 0;border-color:#c7d2fe;'>"
+                    "<strong>True CL is fixed by design.</strong> When F &uarr;, AUC &uarr; and apparent CL/F &darr;."
+                    '</div>',
                     unsafe_allow_html=True,
                 )
             with map_col:
                 st.markdown(
                     _html_card(
-                        "Default assumption mapping",
-                        f"Permeability probability <strong>{probability:.2f}</strong> &rarr; "
-                        f"Adjusted F = <strong>{assumptions['adjusted_f']:.2f}</strong>, "
-                        f"Adjusted ka = <strong>{assumptions['adjusted_ka']:.2f} h⁻¹</strong>. "
-                        "Edit the parameters below to explore alternative scenarios.",
+                        "Permeability → F/ka assumption mapping",
+                        f"Probability <strong>{probability:.2f}</strong> &rarr; "
+                        f"Adjusted F = <strong>{assumptions['adjusted_f']:.2f}</strong> &nbsp;|&nbsp; "
+                        f"Adjusted ka = <strong>{assumptions['adjusted_ka']:.2f} h⁻¹</strong>.<br>"
+                        f"Reference F = {assumptions['reference_f']:.2f} &nbsp;|&nbsp; "
+                        f"Reference ka = {assumptions['reference_ka']:.2f} h⁻¹.<br>"
+                        "Edit parameters below to explore alternative scenarios.",
                     ),
                     unsafe_allow_html=True,
                 )
@@ -989,56 +1418,7 @@ def render_adme_screening() -> None:
                 _tmax_shift = _adj_tmax - _ref_tmax
                 _clf_ratio = _adj_clf / _ref_clf if _ref_clf else float("nan")
 
-                # --- Metric cards ---
-                st.markdown("#### Key exposure metrics")
-                m1, m2, m3 = st.columns(3)
-                with m1:
-                    st.metric("True CL (L/h)", f"{pk_cl:.2f}", help="Fixed by design; permeability does not change true systemic clearance.")
-                    st.metric("Ref AUC", f"{_ref_auc:.2f}")
-                    st.metric("Adj AUC", f"{_adj_auc:.2f}")
-                with m2:
-                    st.metric("AUC ratio", f"{_auc_ratio:.3f}", delta=f"{_auc_ratio - 1:.3f}")
-                    st.metric("Cmax ratio", f"{_cmax_ratio:.3f}", delta=f"{_cmax_ratio - 1:.3f}")
-                    st.metric("Tmax shift (h)", f"{_tmax_shift:.2f}")
-                with m3:
-                    st.metric("Ref CL/F", f"{_ref_clf:.2f}")
-                    st.metric("Adj CL/F", f"{_adj_clf:.2f}")
-                    st.metric("CL/F ratio", f"{_clf_ratio:.3f}", delta=f"{_clf_ratio - 1:.3f}")
-
-                # --- Plots ---
-                _curve_data = pd.merge(
-                    _ref_prof.rename(columns={"concentration": "Reference"})[["time", "Reference"]],
-                    _adj_prof.rename(columns={"concentration": "Permeability-adjusted"})[["time", "Permeability-adjusted"]],
-                    on="time",
-                )
-                _curve_data = _curve_data.set_index("time")
-                pk_plot_tabs = st.tabs(["Linear C-t curve", "Semi-log C-t curve", "Scenario table"])
-                with pk_plot_tabs[0]:
-                    st.line_chart(_curve_data)
-                    st.caption("Concentration-time curves for reference vs permeability-adjusted absorption assumptions.")
-                with pk_plot_tabs[1]:
-                    _semi = _curve_data.copy()
-                    for _c in _semi.columns:
-                        _semi[_c] = np.log10(_semi[_c].clip(lower=1e-10))
-                    st.line_chart(_semi)
-                    st.caption("Semi-log scale (log10 concentration); reveals terminal slope more clearly.")
-                with pk_plot_tabs[2]:
-                    _scenario_table = pd.DataFrame({
-                        "Parameter": ["F", "ka (1/h)", "AUC", "Cmax", "Tmax", "True CL", "CL/F"],
-                        "Reference scenario": [
-                            f"{pk_ref_f:.3f}", f"{pk_ref_ka:.3f}",
-                            f"{_ref_auc:.2f}", f"{_ref_cmax:.2f}", f"{_ref_tmax:.2f}",
-                            f"{pk_cl:.2f}", f"{_ref_clf:.2f}",
-                        ],
-                        "Permeability-adjusted": [
-                            f"{pk_adj_f:.3f}", f"{pk_adj_ka:.3f}",
-                            f"{_adj_auc:.2f}", f"{_adj_cmax:.2f}", f"{_adj_tmax:.2f}",
-                            f"{pk_cl:.2f} (unchanged)", f"{_adj_clf:.2f}",
-                        ],
-                    })
-                    st.dataframe(_scenario_table, hide_index=True, use_container_width=True)
-
-                # --- Interpretation cards ---
+                # --- Interpretation cards BEFORE plots ---
                 _pk_table_local = pk_impact_table(probability)
                 _interps = pk_impact_interpretations(_pk_table_local)
                 st.markdown(
@@ -1050,12 +1430,78 @@ def render_adme_screening() -> None:
                     unsafe_allow_html=True,
                 )
 
+                # --- Prominent metric cards ---
+                st.markdown("#### Key exposure metrics")
+                _mc = st.columns(4)
+                _mc[0].markdown(
+                    f'<div class="big-metric"><div class="bm-value">{_auc_ratio:.3f}×</div><div class="bm-label">AUC ratio (adj / ref)</div></div>',
+                    unsafe_allow_html=True,
+                )
+                _mc[1].markdown(
+                    f'<div class="big-metric"><div class="bm-value">{_cmax_ratio:.3f}×</div><div class="bm-label">Cmax ratio (adj / ref)</div></div>',
+                    unsafe_allow_html=True,
+                )
+                _mc[2].markdown(
+                    f'<div class="big-metric"><div class="bm-value">{_tmax_shift:+.2f} h</div><div class="bm-label">Tmax shift (adj − ref)</div></div>',
+                    unsafe_allow_html=True,
+                )
+                _mc[3].markdown(
+                    f'<div class="big-metric"><div class="bm-value">{_clf_ratio:.3f}×</div><div class="bm-label">CL/F ratio (adj / ref)</div></div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Secondary metrics row
+                m1, m2, m3 = st.columns(3)
+                with m1:
+                    st.metric("True CL (L/h)", f"{pk_cl:.2f}", help="Fixed by design; permeability does not change true systemic clearance.")
+                with m2:
+                    st.metric("Ref AUC → Adj AUC", f"{_ref_auc:.1f} → {_adj_auc:.1f}")
+                with m3:
+                    st.metric("Ref CL/F → Adj CL/F", f"{_ref_clf:.1f} → {_adj_clf:.1f}")
+
+                # --- Plots ---
+                _curve_data = pd.merge(
+                    _ref_prof.rename(columns={"concentration": "Reference"})[["time", "Reference"]],
+                    _adj_prof.rename(columns={"concentration": "Permeability-adjusted"})[["time", "Permeability-adjusted"]],
+                    on="time",
+                )
+                _curve_data = _curve_data.set_index("time")
+                pk_plot_tabs = st.tabs(["Linear C-t overlay", "Semi-log C-t overlay", "Scenario table"])
+                with pk_plot_tabs[0]:
+                    st.line_chart(_curve_data)
+                    st.caption("Concentration-time curves: reference (blue) vs permeability-adjusted (orange) absorption assumptions. AUC ratio reflects F change only; true CL is unchanged.")
+                with pk_plot_tabs[1]:
+                    _semi = _curve_data.copy()
+                    for _c in _semi.columns:
+                        _semi[_c] = np.log10(_semi[_c].clip(lower=1e-10))
+                    st.line_chart(_semi)
+                    st.caption("Semi-log scale (log₁₀ concentration). Parallel terminal slopes confirm true CL is identical in both scenarios.")
+                with pk_plot_tabs[2]:
+                    _scenario_table = pd.DataFrame({
+                        "Parameter": ["F", "ka (1/h)", "AUC", "Cmax", "Tmax", "True CL (fixed)", "CL/F"],
+                        "Reference scenario": [
+                            f"{pk_ref_f:.3f}", f"{pk_ref_ka:.3f}",
+                            f"{_ref_auc:.2f}", f"{_ref_cmax:.2f}", f"{_ref_tmax:.2f}",
+                            f"{pk_cl:.2f}", f"{_ref_clf:.2f}",
+                        ],
+                        "Permeability-adjusted": [
+                            f"{pk_adj_f:.3f}", f"{pk_adj_ka:.3f}",
+                            f"{_adj_auc:.2f}", f"{_adj_cmax:.2f}", f"{_adj_tmax:.2f}",
+                            f"{pk_cl:.2f} (unchanged)", f"{_adj_clf:.2f}",
+                        ],
+                        "Ratio (adj / ref)": [
+                            f"{pk_adj_f / pk_ref_f:.3f}", f"{pk_adj_ka / pk_ref_ka:.3f}",
+                            f"{_auc_ratio:.3f}", f"{_cmax_ratio:.3f}",
+                            f"{_adj_tmax / _ref_tmax:.3f}" if _ref_tmax else "N/A",
+                            "1.000", f"{_clf_ratio:.3f}",
+                        ],
+                    })
+                    st.dataframe(_scenario_table, hide_index=True, use_container_width=True)
+
                 # --- Warning banner ---
                 st.warning(
-                    "This is an educational scenario, not a validated human PK prediction. "
-                    "F and ka are assumption-mapped from permeability class, not measured. "
-                    "True CL remains fixed unless you edit it above. "
-                    "Transporters, solubility, first-pass metabolism, protein binding, and formulation also matter."
+                    "Educational scenario only. F and ka are mapped from permeability probability — not measured. "
+                    "True CL is fixed by design. Transporters, solubility, first-pass metabolism, protein binding, and formulation also influence real exposure."
                 )
 
     with workflow_tabs[6]:
@@ -1102,28 +1548,54 @@ def render_adme_screening() -> None:
             applicability,
             pk_table,
         )
-        download_cols = st.columns(3)
-        download_cols[0].download_button(
-            "Download markdown report",
-            report_text,
-            file_name="adme_pk_interpretation_report.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
-        download_cols[1].download_button(
-            "Download descriptor CSV",
-            _descriptor_dataframe(descriptors).to_csv(index=False),
-            file_name="molecular_descriptors.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-        download_cols[2].download_button(
-            "Download PK impact CSV",
-            pk_table.to_csv(index=False),
-            file_name="permeability_pk_impact.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+
+        st.markdown("---")
+        st.subheader("Report Download")
+        rp_col, dl_col = st.columns([1.3, 1.0])
+        with rp_col:
+            st.markdown(
+                '<div class="report-preview">'
+                '<h4>Report contents</h4>'
+                '<ul>'
+                "<li>Molecule identity (name, category, SMILES)</li>"
+                "<li>Molecular descriptors (MW, LogP, TPSA, HBD, HBA, rings, Csp3, …)</li>"
+                "<li>Caco-2 permeability prediction and class probability</li>"
+                "<li>Confidence score and entropy</li>"
+                "<li>Applicability-domain category and nearest-neighbor similarity</li>"
+                "<li>Explainability summary (descriptor drivers and SHAP interpretation)</li>"
+                "<li>Permeability-to-PK impact: F, ka, AUC, Cmax, Tmax, CL/F assumptions</li>"
+                "<li>AUC ratio, Cmax ratio, Tmax shift, CL/F ratio (adjusted vs reference)</li>"
+                "<li>Core PK equations (AUC = F × Dose / CL; CL/F = Dose / AUC; kel = CL / Vd)</li>"
+                "<li>Scientific limitations and model boundaries</li>"
+                "<li>References and scientific grounding</li>"
+                "</ul>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+        with dl_col:
+            st.markdown("#### Download files")
+            st.download_button(
+                "Download full markdown report",
+                report_text,
+                file_name="adme_pk_interpretation_report.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
+            st.download_button(
+                "Download descriptor CSV",
+                _descriptor_dataframe(descriptors).to_csv(index=False),
+                file_name="molecular_descriptors.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+            st.download_button(
+                "Download PK impact CSV",
+                pk_table.to_csv(index=False),
+                file_name="permeability_pk_impact.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+            st.caption("Reports are generated locally from your session. No data is sent to any server.")
 
     with st.expander("Feature vector preview"):
         st.json(feature_vector)
@@ -1169,7 +1641,7 @@ def _comparison_rows(selected_labels: list[str]) -> pd.DataFrame:
 def render_comparison_mode() -> None:
     """Render molecule comparison workflow."""
     st.header("Molecule Comparison Mode")
-    st.caption("Select 2-5 examples and compare physicochemical descriptors, model output, confidence, and training-domain similarity.")
+    st.caption("Select 2–5 examples and compare physicochemical descriptors, model output, confidence, and training-domain similarity.")
 
     examples = _example_table()
     query = st.text_input("Filter comparison library", placeholder="Example: statin, caffeine, warfarin", key="compare_search")
@@ -1200,90 +1672,157 @@ def render_comparison_mode() -> None:
         st.warning("No comparison rows could be calculated.")
         return
 
-    display_table = _format_comparison_table(comparison)
-    _style_fn = lambda value: (
-        "background-color: #dcfce7; color: #166534;" if value == "high permeability class"
-        else ("background-color: #fee2e2; color: #991b1b;" if value == "low permeability class" else "")
+    # --- Summary cards row ---
+    favorable = comparison.assign(
+        rank_score=comparison["high_probability"].fillna(0) + comparison["confidence"].fillna(0) - comparison["tpsa"] / 300
     )
-    try:
-        # pandas >= 2.1: applymap was renamed to map
-        _styled = display_table.style.map(_style_fn, subset=["Predicted class"])
-    except AttributeError:
-        _styled = display_table.style.applymap(_style_fn, subset=["Predicted class"])
-    st.dataframe(_styled, hide_index=True, use_container_width=True)
-
-    chart_data = comparison.set_index("molecule")
-    chart_cols = st.columns(7)
-    with chart_cols[0]:
-        st.markdown("#### MW")
-        st.bar_chart(chart_data[["molecular_weight"]])
-    with chart_cols[1]:
-        st.markdown("#### LogP")
-        st.bar_chart(chart_data[["logp"]])
-    with chart_cols[2]:
-        st.markdown("#### TPSA")
-        st.bar_chart(chart_data[["tpsa"]])
-    with chart_cols[3]:
-        st.markdown("#### Confidence")
-        st.bar_chart(chart_data[["confidence"]])
-    with chart_cols[4]:
-        st.markdown("#### Domain sim.")
-        st.bar_chart(chart_data[["applicability_similarity"]])
-    with chart_cols[5]:
-        if "suggested_f" in chart_data and chart_data["suggested_f"].notna().any():
-            st.markdown("#### Suggested F")
-            st.bar_chart(chart_data[["suggested_f"]])
-        else:
-            st.markdown("#### Suggested F")
-            st.caption("N/A")
-    with chart_cols[6]:
-        if "suggested_ka" in chart_data and chart_data["suggested_ka"].notna().any():
-            st.markdown("#### Suggested ka")
-            st.bar_chart(chart_data[["suggested_ka"]])
-        else:
-            st.markdown("#### Suggested ka")
-            st.caption("N/A")
-
-    st.markdown("#### Short interpretation")
-    most_polar = comparison.sort_values("tpsa", ascending=False).iloc[0]
-    most_lipophilic = comparison.sort_values("logp", ascending=False).iloc[0]
-    largest = comparison.sort_values("molecular_weight", ascending=False).iloc[0]
-    st.write(
-        f"- Highest TPSA: **{most_polar['molecule']}**, which may reduce passive diffusion if polarity is high."
-    )
-    st.write(
-        f"- Highest logP: **{most_lipophilic['molecule']}**, suggesting greater lipophilicity but possible solubility tradeoffs."
-    )
-    st.write(
-        f"- Largest molecule: **{largest['molecule']}**, which may face size-related permeability penalties."
-    )
-    if comparison["applicability_similarity"].notna().any():
-        lowest_domain = comparison.sort_values("applicability_similarity", ascending=True).iloc[0]
-        st.write(
-            f"- Lowest nearest-neighbor similarity: **{lowest_domain['molecule']}**; treat extrapolated predictions more cautiously."
-        )
-    if {"Metformin", "Ibuprofen", "Aspirin"}.issubset(set(comparison["molecule"])):
-        st.markdown(
-            _html_card(
-                "Automatic ADME triage interpretation",
-                "Metformin is much more polar than ibuprofen and aspirin, with higher hydrogen-bonding burden and lower lipophilicity, which is consistent with lower passive permeability. Ibuprofen is more lipophilic and less polar, supporting higher passive diffusion potential. Aspirin sits in a moderate region where acidity, TPSA, and ionization context matter.",
-            ),
-            unsafe_allow_html=True,
-        )
-    favorable = comparison.assign(rank_score=comparison["high_probability"].fillna(0) + comparison["confidence"].fillna(0) - comparison["tpsa"] / 300)
     most_favorable = favorable.sort_values("rank_score", ascending=False).iloc[0]
     polarity_limited = comparison.sort_values("tpsa", ascending=False).iloc[0]
     highest_confidence = comparison.sort_values("confidence", ascending=False).iloc[0]
-    ranking_cols = st.columns(4)
-    ranking_cols[0].metric("Most permeability-favorable", str(most_favorable["molecule"]))
-    ranking_cols[1].metric("Most polarity-limited", str(polarity_limited["molecule"]))
-    ranking_cols[2].metric("Highest confidence", str(highest_confidence["molecule"]))
+    largest_f = comparison.sort_values("suggested_f", ascending=False).iloc[0] if "suggested_f" in comparison and comparison["suggested_f"].notna().any() else None
+    largest_ka = comparison.sort_values("suggested_ka", ascending=False).iloc[0] if "suggested_ka" in comparison and comparison["suggested_ka"].notna().any() else None
+
+    sc = st.columns(5)
+    sc[0].metric("Most permeability-favorable", str(most_favorable["molecule"]), help="Highest combined score: high probability + confidence − polarity penalty")
+    sc[1].metric("Most polarity-limited", str(polarity_limited["molecule"]), help="Highest TPSA — largest polarity-related permeability burden")
+    sc[2].metric("Highest model confidence", str(highest_confidence["molecule"]), help="Most decisive prediction from the classifier")
     if comparison["applicability_similarity"].notna().any():
         outside = comparison.sort_values("applicability_similarity", ascending=True).iloc[0]
-        ranking_cols[3].metric("Most outside-domain", str(outside["molecule"]))
+        sc[3].metric("Lowest domain similarity", str(outside["molecule"]), help="Most distant from training-set chemistry; treat predictions with extra caution")
+    if largest_f is not None:
+        sc[4].metric("Largest suggested F", f"{largest_f['molecule']} ({largest_f['suggested_f']:.2f})", help="Highest permeability-mapped oral bioavailability assumption")
+
     interpretations = comparison_interpretations(comparison)
     st.markdown(_html_card("Beginner interpretation", interpretations["beginner"]), unsafe_allow_html=True)
     st.markdown(_html_card("Pharmaceutics / PhD-level interpretation", interpretations["phd"]), unsafe_allow_html=True)
+
+    if {"Metformin", "Ibuprofen", "Aspirin"}.issubset(set(comparison["molecule"])):
+        st.markdown(
+            _html_card(
+                "ADME triage insight",
+                "Metformin is much more polar than ibuprofen and aspirin, with higher hydrogen-bonding burden and lower lipophilicity — consistent with lower passive permeability. "
+                "Ibuprofen is more lipophilic and less polar, supporting higher passive diffusion potential. "
+                "Aspirin sits in a moderate region where acidity, TPSA, and ionization context matter.",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    # Pre-compute display table once so all tabs and the structure grid can use it
+    display_table = _format_comparison_table(comparison)
+
+    # --- Molecule structure grid ---
+    st.markdown("#### Selected molecule structures")
+    _examples_idx = _example_table().set_index("label")
+    _struct_cols = st.columns(min(len(selected), 5))
+    for _si, (_label, _col) in enumerate(zip(selected, _struct_cols)):
+        try:
+            _row = _examples_idx.loc[_label]
+            _mol_name = str(_row["name"])
+            _mol_smiles = str(_row["smiles"])
+            _mol_cat = str(_row["category"])
+            _comp_row = comparison[comparison["molecule"] == _mol_name]
+            _pred_lbl = str(_comp_row["predicted_permeability"].iloc[0]) if not _comp_row.empty else ""
+            _sug_f = float(_comp_row["suggested_f"].iloc[0]) if not _comp_row.empty and _comp_row["suggested_f"].notna().any() else None
+            _sug_ka = float(_comp_row["suggested_ka"].iloc[0]) if not _comp_row.empty and _comp_row["suggested_ka"].notna().any() else None
+            _card_html = _render_molecule_card_html(
+                _mol_name, _mol_smiles, _mol_cat, _pred_lbl, _sug_f, _sug_ka,
+                svg_width=240, svg_height=165,
+            )
+            with _col:
+                st.markdown(_card_html, unsafe_allow_html=True)
+        except Exception:
+            _struct_cols[_si].caption(f"Card unavailable for {_label}")
+
+    comp_tabs = st.tabs(["A. Physicochemical", "B. Model & Trust", "C. PK Assumptions"])
+
+    with comp_tabs[0]:
+        st.markdown('<div class="compare-section-header">A. Physicochemical Comparison</div>', unsafe_allow_html=True)
+        phys_cols = ["Molecule", "Category", "MW", "LogP", "TPSA", "HBD", "HBA", "Rotatable bonds"]
+        phys_avail = [c for c in phys_cols if c in display_table.columns]
+        st.dataframe(display_table[phys_avail], hide_index=True, use_container_width=True)
+        chart_data = comparison.set_index("molecule")
+        phys_chart_cols = st.columns(4)
+        with phys_chart_cols[0]:
+            st.caption("MW")
+            st.bar_chart(chart_data[["molecular_weight"]])
+        with phys_chart_cols[1]:
+            st.caption("LogP")
+            st.bar_chart(chart_data[["logp"]])
+        with phys_chart_cols[2]:
+            st.caption("TPSA")
+            st.bar_chart(chart_data[["tpsa"]])
+        with phys_chart_cols[3]:
+            st.caption("HBD")
+            st.bar_chart(chart_data[["hbd"]])
+
+        most_polar = comparison.sort_values("tpsa", ascending=False).iloc[0]
+        most_lipophilic = comparison.sort_values("logp", ascending=False).iloc[0]
+        largest = comparison.sort_values("molecular_weight", ascending=False).iloc[0]
+        phys_notes = [
+            f"Highest TPSA: **{most_polar['molecule']}** ({most_polar['tpsa']:.1f}) — largest polarity-related permeability burden.",
+            f"Highest LogP: **{most_lipophilic['molecule']}** ({most_lipophilic['logp']:.2f}) — most lipophilic; consider solubility tradeoffs.",
+            f"Largest MW: **{largest['molecule']}** ({largest['molecular_weight']:.1f} Da) — possible size-related diffusion penalty.",
+        ]
+        for note in phys_notes:
+            st.write(f"- {note}")
+
+    with comp_tabs[1]:
+        st.markdown('<div class="compare-section-header">B. Model and Trust Comparison</div>', unsafe_allow_html=True)
+        trust_cols = ["Molecule", "Predicted class", "High permeability probability", "Confidence", "Applicability similarity"]
+        trust_avail = [c for c in trust_cols if c in display_table.columns]
+        _style_fn = lambda value: (
+            "background-color: #dcfce7; color: #166534;" if value == "high permeability class"
+            else ("background-color: #fee2e2; color: #991b1b;" if value == "low permeability class" else "")
+        )
+        _styled = _safe_style(display_table[trust_avail], _style_fn, "Predicted class")
+        st.dataframe(_styled, hide_index=True, use_container_width=True)
+        trust_chart_cols = st.columns(3)
+        chart_data = comparison.set_index("molecule")
+        with trust_chart_cols[0]:
+            st.caption("High-class probability")
+            st.bar_chart(chart_data[["high_probability"]])
+        with trust_chart_cols[1]:
+            st.caption("Confidence score")
+            st.bar_chart(chart_data[["confidence"]])
+        with trust_chart_cols[2]:
+            if "applicability_similarity" in chart_data and chart_data["applicability_similarity"].notna().any():
+                st.caption("Domain similarity")
+                st.bar_chart(chart_data[["applicability_similarity"]])
+        if comparison["applicability_similarity"].notna().any():
+            lowest_domain = comparison.sort_values("applicability_similarity", ascending=True).iloc[0]
+            st.write(
+                f"- Lowest domain similarity: **{lowest_domain['molecule']}** ({lowest_domain['applicability_similarity']:.3f}) — treat this prediction with extra caution."
+            )
+
+    with comp_tabs[2]:
+        st.markdown('<div class="compare-section-header">C. PK Assumption Comparison</div>', unsafe_allow_html=True)
+        st.caption("F and ka are mapped from permeability probability under the educational assumption model. True CL is held constant by design.")
+        pk_cols = ["Molecule", "Predicted class", "High permeability probability", "Suggested F", "Suggested ka (1/h)"]
+        pk_avail = [c for c in pk_cols if c in display_table.columns]
+        st.dataframe(display_table[pk_avail], hide_index=True, use_container_width=True)
+        pk_chart_cols = st.columns(2)
+        chart_data = comparison.set_index("molecule")
+        with pk_chart_cols[0]:
+            if "suggested_f" in chart_data and chart_data["suggested_f"].notna().any():
+                st.caption("Suggested F (bioavailability assumption)")
+                st.bar_chart(chart_data[["suggested_f"]])
+        with pk_chart_cols[1]:
+            if "suggested_ka" in chart_data and chart_data["suggested_ka"].notna().any():
+                st.caption("Suggested ka (absorption rate assumption)")
+                st.bar_chart(chart_data[["suggested_ka"]])
+        if largest_f is not None:
+            st.write(f"- Largest suggested F: **{largest_f['molecule']}** ({largest_f['suggested_f']:.2f}) — highest simulated absorption fraction under educational mapping.")
+        if largest_ka is not None:
+            st.write(f"- Largest suggested ka: **{largest_ka['molecule']}** ({largest_ka['suggested_ka']:.2f} h⁻¹) — fastest absorption-rate assumption.")
+        st.markdown(
+            _html_card(
+                "How to read this table",
+                "Suggested F and ka are derived from the permeability probability using a transparent linear mapping. "
+                "They are not measured values. A higher F maps to higher simulated AUC and lower apparent CL/F, "
+                "while true CL is unchanged. Higher ka primarily shifts Cmax timing (Tmax) and curve shape.",
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 def _build_pk_report(
@@ -1537,16 +2076,292 @@ def render_pk_nca_simulator() -> None:
     )
 
 
+_MULTI_DRUG_DEFAULTS = [
+    "Aspirin - Analgesics/NSAIDs",
+    "Ibuprofen - Analgesics/NSAIDs",
+    "Metformin - PK teaching examples",
+    "Propranolol - Cardiovascular drugs",
+    "Caffeine - Natural products/cannabinoids",
+]
+
+
+def render_multi_drug_pk_comparison() -> None:
+    """Render multi-drug PK impact comparison page."""
+    st.header("Multi-Drug PK Impact Comparison")
+    st.caption(
+        "Select 2–5 molecules to compare permeability-informed oral PK curve shifts side-by-side. "
+        "All curves are educational simulations — not observed clinical PK data."
+    )
+
+    st.markdown(
+        _html_card(
+            "Scientific framing",
+            "For each selected molecule, the ML Caco-2 probability maps to adjusted F and ka under the "
+            "educational assumption model. Dose, Vd, and true CL are held constant. "
+            "Differences in AUC across drugs are driven entirely by assumed F "
+            "(AUC<sub>oral</sub> = F &times; Dose / CL). "
+            "Differences in Cmax and Tmax are driven by ka."
+            "<br><strong>No observed clinical PK data are bundled. All curves are educational.</strong>",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    examples = _example_table()
+    query = st.text_input("Filter molecule library", placeholder="aspirin, metformin, warfarin …", key="mdpk_search")
+    filtered = examples.copy()
+    if query.strip():
+        filtered = filtered[filtered["name"].str.contains(query.strip(), case=False, regex=False)]
+
+    available_defaults = [lbl for lbl in _MULTI_DRUG_DEFAULTS if lbl in filtered["label"].tolist()]
+    selected = st.multiselect(
+        "Molecules to compare",
+        filtered["label"].tolist(),
+        default=available_defaults[:4],
+        max_selections=5,
+        key="mdpk_select",
+    )
+    if len(selected) < 2:
+        st.info("Select at least 2 molecules to start the comparison.")
+        return
+
+    # Build entries list
+    examples_idx = _example_table().set_index("label")
+    entries = []
+    lit_profile_names = []
+    for label in selected:
+        try:
+            row = examples_idx.loc[label]
+            mol_name = str(row["name"])
+            smiles = str(row["smiles"])
+            pred, _conf = _prediction_with_confidence(smiles)
+            prob = float(pred["high_permeability_probability"]) if pred else 0.5
+            entries.append({"name": mol_name, "probability": prob})
+            if mol_name.lower() in {k.lower() for k in DRUG_PK_PROFILES}:
+                lit_profile_names.append(mol_name)
+        except Exception:
+            continue
+
+    if not entries:
+        st.warning("Could not compute predictions for selected molecules.")
+        return
+
+    with st.spinner("Computing PK profiles …"):
+        metrics, profiles = multi_drug_pk_comparison(entries)
+
+    if metrics.empty:
+        st.warning("PK comparison returned no results.")
+        return
+
+    # --- Heatmap-style summary table ---
+    st.markdown("#### Exposure ratio summary")
+    display_metrics = metrics[
+        ["molecule", "probability", "suggested_f", "suggested_ka",
+         "auc_ratio", "cmax_ratio", "tmax_shift", "clf_ratio", "true_cl"]
+    ].rename(columns={
+        "molecule": "Molecule", "probability": "Probability",
+        "suggested_f": "Adj F", "suggested_ka": "Adj ka (h⁻¹)",
+        "auc_ratio": "AUC ratio", "cmax_ratio": "Cmax ratio",
+        "tmax_shift": "Tmax shift (h)", "clf_ratio": "CL/F ratio",
+        "true_cl": "True CL (fixed)",
+    })
+    for col in ["Probability", "Adj F", "Adj ka (h⁻¹)", "AUC ratio", "Cmax ratio",
+                "Tmax shift (h)", "CL/F ratio"]:
+        if col in display_metrics:
+            display_metrics[col] = display_metrics[col].map(
+                lambda v: None if pd.isna(v) else round(float(v), 3)
+            )
+    st.dataframe(display_metrics, hide_index=True, use_container_width=True)
+
+    # --- Ratio bar charts ---
+    ratio_cols = st.columns(3)
+    chart_data = metrics.set_index("molecule")
+    with ratio_cols[0]:
+        st.caption("AUC ratio (adj / ref)")
+        st.bar_chart(chart_data[["auc_ratio"]])
+    with ratio_cols[1]:
+        st.caption("Cmax ratio (adj / ref)")
+        st.bar_chart(chart_data[["cmax_ratio"]])
+    with ratio_cols[2]:
+        st.caption("CL/F ratio (adj / ref)")
+        st.bar_chart(chart_data[["clf_ratio"]])
+
+    # --- Overlay concentration-time curves ---
+    if profiles:
+        st.markdown("#### Overlay concentration-time curves")
+        overlay_tabs = st.tabs(["All drugs — reference overlay", "All drugs — adjusted overlay"])
+        ref_curves = {}
+        adj_curves = {}
+        for name, merged in profiles.items():
+            ref_col = f"{name} (ref)"
+            adj_col = f"{name} (adj)"
+            if ref_col in merged.columns:
+                ref_curves[name] = merged.set_index("time")[ref_col]
+            if adj_col in merged.columns:
+                adj_curves[name] = merged.set_index("time")[adj_col]
+
+        with overlay_tabs[0]:
+            if ref_curves:
+                ref_df = pd.DataFrame(ref_curves)
+                ref_df.index.name = "time"
+                st.line_chart(ref_df)
+                st.caption("Reference educational scenario for all selected drugs (F = 0.80, ka = 1.20 h⁻¹).")
+        with overlay_tabs[1]:
+            if adj_curves:
+                adj_df = pd.DataFrame(adj_curves)
+                adj_df.index.name = "time"
+                st.line_chart(adj_df)
+                st.caption("Permeability-adjusted educational scenario (F and ka scaled from model probability).")
+
+    # --- Literature teaching preset note ---
+    if lit_profile_names:
+        st.markdown(
+            _html_card(
+                "Literature teaching presets available",
+                f"<strong>{', '.join(lit_profile_names)}</strong> have curated approximate literature teaching "
+                "profiles in this platform. Switch to the PK/NCA Simulator and select a drug profile to load "
+                "those approximate values. They are labeled as teaching presets and are NOT observed clinical PK data.",
+            ),
+            unsafe_allow_html=True,
+        )
+
+    # --- Observed data notice ---
+    st.info(
+        "No observed concentration-time data are bundled for any molecule. "
+        "All curves shown are educational simulations from permeability-mapped F/ka assumptions. "
+        "For drugs where literature teaching presets exist, use the PK/NCA Simulator to load those approximate values."
+    )
+
+    # --- Interpretations ---
+    st.markdown(
+        _html_card(
+            "Beginner interpretation",
+            "Drugs with higher assumed F have higher simulated AUC because more of the oral dose reaches "
+            "systemic circulation. Drugs with faster ka rise earlier and may reach a higher peak concentration. "
+            "True systemic CL is the same for all drugs in this comparison by design.",
+        ),
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        _html_card(
+            "Pharmaceutics / PhD-level interpretation",
+            "Under fixed dose, Vd, and true CL, differences in AUC are driven primarily by F "
+            "(AUC<sub>oral</sub> = F &times; Dose / CL). Differences in ka alter absorption-rate-limited "
+            "curve shape, influencing Cmax and Tmax. Apparent CL/F varies inversely with AUC, while true CL "
+            "remains fixed unless explicitly changed. The F and ka values here are hypothesis-mapped from "
+            "Caco-2 probability and are not measured or validated.",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # --- Per-drug experiment recommendations ---
+    with st.expander("Per-drug experiment recommendations", expanded=False):
+        for entry in entries:
+            mol_name = str(entry["name"])
+            try:
+                mol_row = examples_idx.loc[[lbl for lbl in selected if mol_name in lbl][0]]
+                mol_smiles = str(mol_row["smiles"])
+                mol_pred, mol_conf = _prediction_with_confidence(mol_smiles)
+                mol_appl = _cached_applicability(mol_smiles)
+                mol_analysis = _analyze_smiles(mol_smiles)
+                mol_desc = dict(mol_analysis["descriptors"])
+                if mol_pred and mol_conf and mol_appl:
+                    rec = experiment_recommendation(
+                        name=mol_name,
+                        probability=float(mol_pred["high_permeability_probability"]),
+                        confidence_cat=str(mol_conf["confidence_category"]),
+                        domain_cat=str(mol_appl["applicability_category"]),
+                        outside_domain=bool(mol_appl["outside_applicability_domain"]),
+                        descriptors=mol_desc,
+                    )
+                    st.markdown(f"**{mol_name}**")
+                    st.write(f"Beginner: {rec['beginner']}")
+                    st.caption(f"PhD level: {rec['phd']}")
+            except Exception:
+                st.caption(f"Recommendation unavailable for {mol_name}")
+
+    # --- Report download ---
+    st.markdown("---")
+    report_md = build_multi_drug_comparison_report(metrics, lit_profile_names)
+    st.download_button(
+        "Download multi-drug comparison report (markdown)",
+        report_md,
+        file_name="multi_drug_pk_comparison.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+    st.download_button(
+        "Download metrics CSV",
+        metrics.drop(columns=["molecule"], errors="ignore").to_csv(index=True),
+        file_name="multi_drug_pk_metrics.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+    st.caption(MULTI_DRUG_COMPARISON_DISCLAIMER)
+
+
 def render_evidence_library() -> None:
     """Render project evidence and documentation summary."""
     st.header("Evidence, Documentation, and Responsible Use")
     st.markdown(
-        """
-        This page summarizes the project artifacts that support the demo: dataset documentation,
-        model reports, scaffold split comparison, SHAP interpretation, outlier analysis, and PK/NCA methods.
-        """
+        "This page summarizes project artifacts: dataset documentation, model reports, "
+        "scaffold split comparison, SHAP interpretation, outlier analysis, and PK/NCA methods."
     )
-    with st.expander("Reviewer Summary", expanded=True):
+
+    # --- AI recruiter / product summary ---
+    with st.expander("Why this project matters for AI-health and pharma AI", expanded=True):
+        recruiter_items = [
+            ("Real biomedical data", "Caco-2 Wang public benchmark — 906 experimentally measured molecules"),
+            ("Molecular featurization", "RDKit descriptors (MW, logP, TPSA, HBD/HBA, rotatable bonds, rings, Csp3) + Morgan fingerprints"),
+            ("ML prediction", "Random Forest and XGBoost classifiers with probability output"),
+            ("Validation beyond random split", "Bemis-Murcko scaffold split — test molecules have chemically distinct cores from training"),
+            ("Uncertainty quantification", "Binary entropy confidence scoring + probability margin"),
+            ("Applicability-domain checks", "Morgan/Tanimoto nearest-neighbor similarity to training set with explicit warnings"),
+            ("Explainable AI", "Descriptor driver analysis, SHAP-style interpretation, local driver bar charts"),
+            ("Multi-drug comparison", "Select 2-5 molecules, compare AUC/Cmax/CL-F ratios under permeability-informed assumptions"),
+            ("Experiment recommendation engine", "Rule-based per-molecule follow-up guidance for Caco-2, solubility, transporter assays"),
+            ("Scientific safety boundaries", "No clinical, PBPK, dose, safety, or regulatory claim; explicit educational framing throughout"),
+            ("Deployed UI", "Streamlit Cloud deployment with professional pharma-style interface"),
+            ("Report generation", "Downloadable markdown + CSV reports per molecule and multi-drug comparison"),
+            ("Educational PK simulation", "One-compartment NCA + permeability-to-PK impact with editable assumptions"),
+            ("Modular Python package", f"Tested: 90+ unit tests covering scientific correctness and software correctness"),
+        ]
+        r_col1, r_col2 = st.columns(2)
+        for i, (title, detail) in enumerate(recruiter_items):
+            col = r_col1 if i % 2 == 0 else r_col2
+            col.markdown(
+                f'<div class="premium-card" style="margin-bottom:0.4rem;">'
+                f'<h3 style="font-size:0.92rem;margin:0 0 0.2rem 0;">{title}</h3>'
+                f'<p style="font-size:0.84rem;margin:0;">{detail}</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    # --- Model Trust & Engineering panel ---
+    with st.expander("Model Trust and Engineering", expanded=True):
+        trust_rows = [
+            ("Dataset", "TDC Caco-2 Wang benchmark, 906 processed molecules, experimentally measured log(Papp)"),
+            ("Model type", "Trained XGBoost / Random Forest classifier and regressor"),
+            ("Validation", "Random split AND Bemis-Murcko scaffold split — two modes reported side by side"),
+            ("Explainability", "SHAP global + local feature attribution; descriptor driver bar chart"),
+            ("Uncertainty", "Classifier probability confidence (margin from 0.5) + prediction entropy"),
+            ("Applicability domain", "Morgan fingerprint Tanimoto similarity to nearest training neighbor"),
+            ("Class threshold", "Dataset median log(Papp) — not a clinical cutoff"),
+            ("Deployment", "Streamlit Cloud — cached inference, SVG molecule rendering, downloadable reports"),
+            ("Testing", f"90+ automated pytest tests — scientific correctness + software correctness"),
+            ("Report export", "Markdown report + descriptor CSV + PK impact CSV per molecule"),
+            ("Limitations", "Caco-2 only; no validated human PK, PBPK, clinical, regulatory, or dose claim"),
+        ]
+        _t1, _t2 = st.columns(2)
+        for i, (k, v) in enumerate(trust_rows):
+            (_t1 if i % 2 == 0 else _t2).markdown(
+                f'<div class="premium-card" style="margin-bottom:0.35rem;">'
+                f'<h3 style="font-size:0.9rem;margin:0 0 0.15rem 0;">{k}</h3>'
+                f'<p style="font-size:0.82rem;margin:0;">{v}</p>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    with st.expander("Reviewer Summary", expanded=False):
         reviewer_cols = st.columns(3)
         reviewer_cols[0].markdown(
             _html_card("AI/ML recruiter", REVIEWER_SUMMARY["ai_ml_recruiter"]),
@@ -1560,11 +2375,13 @@ def render_evidence_library() -> None:
             _html_card("Academic PI / PK reviewer", REVIEWER_SUMMARY["academic_pi"]),
             unsafe_allow_html=True,
         )
-    with st.expander("External validation roadmap toward human PK", expanded=True):
+    with st.expander("External validation roadmap toward human PK", expanded=False):
         st.markdown(
-            """
-            A validated human PK predictor would require observed human PK endpoints including CL, Vd, half-life, Cmax, and AUC; route, dose, formulation, population, fed/fasted, and sampling metadata; IVIVE assumptions for clearance and permeability; an external test set; 2-fold or 3-fold prediction-error benchmarks; and prospective validation. This app intentionally stops at Caco-2 permeability risk and educational PK/NCA simulation.
-            """
+            "A validated human PK predictor would require observed human PK endpoints including CL, Vd, "
+            "half-life, Cmax, and AUC; route, dose, formulation, population, fed/fasted, and sampling metadata; "
+            "IVIVE assumptions for clearance and permeability; an external test set; 2-fold or 3-fold "
+            "prediction-error benchmarks; and prospective validation. "
+            "This app intentionally stops at Caco-2 permeability screening and educational PK/NCA simulation."
         )
     docs = [
         ("Architecture", PROJECT_ROOT / "docs" / "architecture.md"),
@@ -1608,8 +2425,21 @@ def main() -> None:
         st.caption(explanation_for_level(explanation_level))
         page = st.radio(
             "Navigate",
-            ["ADME Workbench", "Molecule Comparison", "PK/NCA Simulator", "Evidence & Limits"],
+            [
+                "ADME Workbench",
+                "Molecule Comparison",
+                "Multi-Drug PK",
+                "PK/NCA Simulator",
+                "Evidence & Limits",
+            ],
         )
+        st.divider()
+        st.markdown("#### Model Trust")
+        st.caption("Dataset: Caco-2 Wang, 906 mol")
+        st.caption("Validation: random + scaffold split")
+        st.caption("Explainability: SHAP / descriptor drivers")
+        st.caption("Domain check: Morgan/Tanimoto similarity")
+        st.caption("Tests: 90+ automated")
         st.divider()
         st.markdown("#### App health")
         for item in check_app_health().values():
@@ -1627,6 +2457,8 @@ def main() -> None:
         render_adme_screening()
     elif page == "Molecule Comparison":
         render_comparison_mode()
+    elif page == "Multi-Drug PK":
+        render_multi_drug_pk_comparison()
     elif page == "PK/NCA Simulator":
         render_pk_nca_simulator()
     else:

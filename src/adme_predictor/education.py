@@ -493,3 +493,285 @@ def build_downloadable_report(
             *reference_lines,
         ]
     )
+
+
+# ---------------------------------------------------------------------------
+# Observed PK curve loader (placeholder — no bundled observed data)
+# ---------------------------------------------------------------------------
+
+def load_observed_pk_curve(drug_name: str) -> None:
+    """Return observed concentration-time data for a named drug, or None.
+
+    No observed clinical PK data are bundled in this platform.  This function
+    always returns None.  If real digitized time-concentration data with
+    citations are added in the future, this function should return a dict with
+    keys: time (list[float]), concentration (list[float]), source (str),
+    dose (float), route (str), population (str), citation (str), and
+    digitization_note (str).
+
+    Callers must check for None and display:
+    "No observed concentration-time data are bundled for this molecule.
+    The displayed curves are educational simulations only."
+    """
+    return None  # No observed data bundled — always educational simulation
+
+
+# ---------------------------------------------------------------------------
+# Multi-drug PK comparison
+# ---------------------------------------------------------------------------
+
+def multi_drug_pk_comparison(
+    entries: list[dict[str, object]],
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    """Compute reference vs permeability-adjusted PK for multiple drugs.
+
+    Parameters
+    ----------
+    entries:
+        List of dicts with keys: name (str), probability (float 0-1).
+
+    Returns
+    -------
+    metrics : pd.DataFrame
+        One row per drug with all exposure ratios.
+    profiles : dict[str, pd.DataFrame]
+        Map of drug name → merged reference/adjusted concentration-time profile.
+    """
+    rows: list[dict[str, object]] = []
+    profiles: dict[str, pd.DataFrame] = {}
+
+    for entry in entries:
+        name = str(entry["name"])
+        prob = float(entry["probability"])
+        assumptions = permeability_to_pk_assumptions(prob)
+        kel = assumptions["true_cl"] / assumptions["vd"]
+
+        ref_auc = ref_cmax = ref_tmax = ref_clf = float("nan")
+        adj_auc = adj_cmax = adj_tmax = adj_clf = float("nan")
+        ref_profile = adj_profile = None
+
+        for scenario, f_val, ka_val in [
+            ("reference", assumptions["reference_f"], assumptions["reference_ka"]),
+            ("adjusted", assumptions["adjusted_f"], assumptions["adjusted_ka"]),
+        ]:
+            try:
+                profile, _ = simulate_pk_profile(
+                    route="oral",
+                    dose=assumptions["dose"],
+                    vd=assumptions["vd"],
+                    kel=kel,
+                    duration=assumptions["duration"],
+                    interval=assumptions["interval"],
+                    ka=ka_val,
+                    bioavailability=f_val,
+                )
+                nca, _ = calculate_nca(
+                    profile, dose=assumptions["dose"], route="oral", bioavailability=f_val
+                )
+                if scenario == "reference":
+                    ref_auc = float(nca["auc_inf"])
+                    ref_cmax = float(nca["cmax"])
+                    ref_tmax = float(nca["tmax"])
+                    ref_clf = float(nca["clearance"])
+                    ref_profile = profile
+                else:
+                    adj_auc = float(nca["auc_inf"])
+                    adj_cmax = float(nca["cmax"])
+                    adj_tmax = float(nca["tmax"])
+                    adj_clf = float(nca["clearance"])
+                    adj_profile = profile
+            except Exception:
+                pass
+
+        auc_ratio = _safe_ratio(adj_auc, ref_auc)
+        cmax_ratio = _safe_ratio(adj_cmax, ref_cmax)
+        tmax_shift = adj_tmax - ref_tmax if math.isfinite(adj_tmax) and math.isfinite(ref_tmax) else float("nan")
+        clf_ratio = _safe_ratio(adj_clf, ref_clf)
+
+        rows.append(
+            {
+                "molecule": name,
+                "probability": round(prob, 3),
+                "suggested_f": assumptions["adjusted_f"],
+                "suggested_ka": assumptions["adjusted_ka"],
+                "true_cl": assumptions["true_cl"],
+                "ref_auc": ref_auc,
+                "adj_auc": adj_auc,
+                "auc_ratio": auc_ratio,
+                "ref_cmax": ref_cmax,
+                "adj_cmax": adj_cmax,
+                "cmax_ratio": cmax_ratio,
+                "tmax_shift": tmax_shift,
+                "ref_clf": ref_clf,
+                "adj_clf": adj_clf,
+                "clf_ratio": clf_ratio,
+            }
+        )
+
+        if ref_profile is not None and adj_profile is not None:
+            merged = pd.merge(
+                ref_profile.rename(columns={"concentration": f"{name} (ref)"})[["time", f"{name} (ref)"]],
+                adj_profile.rename(columns={"concentration": f"{name} (adj)"})[["time", f"{name} (adj)"]],
+                on="time",
+            )
+            profiles[name] = merged
+
+    return pd.DataFrame(rows), profiles
+
+
+# ---------------------------------------------------------------------------
+# Experiment recommendation engine
+# ---------------------------------------------------------------------------
+
+def experiment_recommendation(
+    name: str,
+    probability: float,
+    confidence_cat: str,
+    domain_cat: str,
+    outside_domain: bool,
+    descriptors: dict[str, object],
+) -> dict[str, str]:
+    """Return beginner and PhD-level next-experiment recommendations.
+
+    Parameters are derived from the model prediction and descriptor analysis.
+    All recommendations are hypothesis-generating, not clinical guidance.
+    """
+    tpsa = float(descriptors.get("tpsa", 90))
+    hbd = int(descriptors.get("hbd", 2))
+    logp = float(descriptors.get("logp", 2))
+    conf_high = "high" in confidence_cat.lower()
+    conf_low = "low" in confidence_cat.lower()
+    name_lower = name.lower()
+
+    beginner: list[str] = []
+    phd: list[str] = []
+
+    if outside_domain or "outside" in domain_cat.lower():
+        beginner.append(
+            f"The model is extrapolating for {name} — it has low similarity to its training chemistry. "
+            "Prioritize experimental Caco-2 or MDCK permeability measurement before relying on this prediction."
+        )
+        phd.append(
+            f"Tanimoto nearest-neighbor similarity is below the applicability-domain threshold for {name}. "
+            "Prediction uncertainty is elevated beyond what the probability score communicates; "
+            "experimental follow-up is strongly recommended before any decision-critical use."
+        )
+    elif conf_high and probability >= 0.65:
+        beginner.append(
+            f"The model gives a confident high-permeability signal for {name}. "
+            "If the decision is critical, confirm with an in vitro Caco-2 or PAMPA assay."
+        )
+        phd.append(
+            "High classifier confidence reduces decision-boundary uncertainty. "
+            "Recommended follow-up: Caco-2 bidirectional Papp (A→B and B→A) to identify active efflux, "
+            "paired with kinetic solubility at physiological pH."
+        )
+    elif conf_low or probability < 0.45:
+        beginner.append(
+            f"The model predicts low permeability for {name}. "
+            "Check solubility, ionization, formulation options, and consider whether transporters might help."
+        )
+        phd.append(
+            "Low permeability class: consider high polarity, hydrogen-bonding burden, or size penalty. "
+            "Evaluate efflux transporter expression (P-gp/BCRP), passive vs active permeability, "
+            "solubility-limited absorption scenarios, and pH-partition effects."
+        )
+    else:
+        beginner.append(
+            f"{name} is borderline — the model is not decisive. "
+            "Experimental permeability data will be more informative than model output here."
+        )
+        phd.append(
+            "Borderline probability (near 0.5) indicates low model decisiveness. "
+            "Consider Caco-2 at multiple pH values, transcellular vs paracellular contribution "
+            "assessment, and ionization-state profiling."
+        )
+
+    if tpsa > 120 or hbd > 3:
+        beginner.append(
+            "High polarity and hydrogen bonding detected. "
+            "Consider whether transporter-mediated uptake might support absorption."
+        )
+        phd.append(
+            f"TPSA = {tpsa:.1f} Å², HBD = {hbd}: high desolvation cost limits passive transcellular diffusion. "
+            "Evaluate OCT/OAT/OATP transporter substrate potential, especially for polar zwitterions or amines."
+        )
+
+    if logp > 5:
+        beginner.append(
+            "High lipophilicity may improve membrane crossing but can hurt water solubility."
+        )
+        phd.append(
+            f"LogP = {logp:.2f} raises solubility-limited absorption and assay-binding concerns. "
+            "Combine FaSSIF/FeSSIF solubility measurement with Caco-2 to separate permeability from solubility effects."
+        )
+
+    if "metformin" in name_lower or (tpsa > 140 and hbd >= 4):
+        beginner.append(
+            "This looks like a highly polar compound. "
+            "For drugs like metformin, transporters are more important than passive permeability alone."
+        )
+        phd.append(
+            "For metformin-class compounds (biguanides, high TPSA/HBD): passive permeability prediction "
+            "is insufficient. OCT1 hepatic uptake and OCT2/MATE1 renal secretion dominate disposition. "
+            "The Caco-2 model cannot capture transporter-mediated absorption."
+        )
+
+    return {
+        "beginner": " ".join(beginner),
+        "phd": " ".join(phd),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Multi-drug report section builder
+# ---------------------------------------------------------------------------
+
+MULTI_DRUG_COMPARISON_DISCLAIMER = (
+    "All curves are educational simulations generated from permeability-mapped F and ka assumptions. "
+    "No observed concentration-time data are bundled. "
+    "True systemic CL is fixed by design; only absorption assumptions change between scenarios. "
+    "This is hypothesis-generating, not validated human PK."
+)
+
+
+def build_multi_drug_comparison_report(
+    metrics: pd.DataFrame,
+    had_literature_profiles: list[str],
+) -> str:
+    """Build a downloadable markdown section for multi-drug PK comparison."""
+    mol_list = ", ".join(str(m) for m in metrics["molecule"].tolist())
+    metric_lines = []
+    for _, row in metrics.iterrows():
+        metric_lines.append(
+            f"| {row['molecule']} | {row['probability']:.3f} | "
+            f"{row['suggested_f']:.3f} | {row['suggested_ka']:.3f} | "
+            f"{row['auc_ratio']:.3f} | {row['cmax_ratio']:.3f} | "
+            f"{row['clf_ratio']:.3f} |"
+        )
+
+    lit_note = (
+        f"Literature teaching presets were available for: {', '.join(had_literature_profiles)}. "
+        "These are approximate educational values and are NOT observed clinical PK data."
+        if had_literature_profiles
+        else "No literature teaching presets were loaded for this comparison."
+    )
+
+    return "\n".join(
+        [
+            "## Multi-Drug PK Impact Comparison",
+            "",
+            f"Molecules compared: {mol_list}",
+            "",
+            "| Molecule | Probability | Suggested F | Suggested ka | AUC ratio | Cmax ratio | CL/F ratio |",
+            "|---|---|---|---|---|---|---|",
+            *metric_lines,
+            "",
+            f"**Literature teaching presets:** {lit_note}",
+            "",
+            "**Observed data:** No observed concentration-time data are bundled for any molecule. "
+            "All curves are educational simulations.",
+            "",
+            f"**Disclaimer:** {MULTI_DRUG_COMPARISON_DISCLAIMER}",
+        ]
+    )

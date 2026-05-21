@@ -22,10 +22,10 @@ SCREENSHOT_ROWS = [
     ("08_explainable_ai.png", "Explainable AI", "Descriptor driver table, SHAP-style interpretation, and chemical caveats.", "Explainability portfolio"),
     ("09_molecule_comparison.png", "Molecule comparison", "Aspirin, caffeine, ibuprofen, metformin, and propranolol comparison dashboard.", "LinkedIn, recruiter demo"),
     ("10_pk_nca_simulator.png", "PK/NCA simulator", "Oral preset, parameters, metric cards, and concentration-time plot.", "PI review, PK teaching"),
-    ("11_permeability_to_pk_impact.png", "Permeability-to-PK impact", "F/ka assumption mapping, AUC/Cmax/Tmax/CL-F ratios, and interpretations.", "PK/ADME reviewer"),
-    ("12_pk_impact_comparison_curves.png", "PK impact comparison curves", "Reference vs permeability-adjusted oral concentration-time curves.", "PK teaching, PI review"),
-    ("13_equations_iv_oral_ivive.png", "Equations, IV/oral, IVIVE", "PK equations, route explanation, and IVIVE boundary.", "Academic review"),
-    ("14_report_download_section.png", "Report download section", "Markdown report and CSV download buttons.", "GitHub README, reviewer handoff"),
+    ("11_permeability_to_pk_impact.png", "Permeability-to-PK impact", "3-step workflow, formula callout, F/ka assumption mapping, and key metric cards.", "PK/ADME reviewer"),
+    ("12_pk_impact_comparison_curves.png", "PK impact overlay curves", "Beginner/PhD interpretation cards and reference vs permeability-adjusted C-t overlay.", "PK teaching, PI review"),
+    ("13_equations_iv_oral_ivive.png", "Equations, IV/oral, IVIVE", "Expanded PK equations, IV/oral route explanation, and IVIVE boundary panels.", "Academic review"),
+    ("14_report_download_section.png", "Report preview and download", "Report-contents preview panel and download buttons.", "GitHub README, reviewer handoff"),
     ("15_scientific_limitations_and_reviewer_summary.png", "Scientific limits and reviewer summary", "Reviewer summary and external validation roadmap.", "PI review, scientific rigor"),
 ]
 
@@ -126,8 +126,16 @@ def write_qc(issues: list[str]) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def delete_old_screenshots() -> None:
+    for filename, *_ in SCREENSHOT_ROWS:
+        path = OUTPUT_DIR / filename
+        if path.exists():
+            path.unlink()
+
+
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    delete_old_screenshots()
     issues: list[str] = []
 
     with sync_playwright() as playwright:
@@ -141,6 +149,8 @@ def main() -> None:
             expand_if_collapsed(page, "Scientific guide")
             capture(page, "02_how_to_use_and_app_overview.png", issues)
 
+            # Molecule input: ensure ADME Workbench is active and Aspirin selected
+            navigate(page, "ADME Workbench")
             capture(page, "03_molecule_input_aspirin.png", issues)
 
             for tab, filename in [
@@ -151,41 +161,77 @@ def main() -> None:
                 ("Explainable AI", "08_explainable_ai.png"),
             ]:
                 click_tab(page, tab)
+                page.wait_for_timeout(800)
                 capture(page, filename, issues)
 
             navigate(page, "Molecule Comparison")
+            page.wait_for_timeout(2000)
             capture(page, "09_molecule_comparison.png", issues)
 
             navigate(page, "PK/NCA Simulator")
             expect(page.get_by_text("Oral fast absorption").first).to_be_visible(timeout=15000)
+            page.wait_for_timeout(1500)
             capture(page, "10_pk_nca_simulator.png", issues)
 
+            # 11: Permeability-to-PK Impact header + assumption mapping + key metrics
             navigate(page, "ADME Workbench")
             click_tab(page, "PK Impact")
-            page.wait_for_timeout(1200)
-            capture(page, "11_permeability_to_pk_impact.png", issues)
-            # Click the "Linear C-t curve" tab to show the concentration-time curves
+            page.wait_for_timeout(2000)
+            # Scroll to top of PK Impact section to show the 3-step workflow and formula callout
             try:
-                page.get_by_role("tab", name=re.compile("Linear C-t curve")).click(timeout=8000)
-                page.wait_for_timeout(1000)
+                page.get_by_text("Permeability to PK Impact").first.scroll_into_view_if_needed(timeout=8000)
+                page.wait_for_timeout(600)
             except Exception:
                 pass
-            scroll_to_text(page, "Editable scenario parameters")
-            page.wait_for_timeout(600)
+            capture(page, "11_permeability_to_pk_impact.png", issues, full_page=False)
+
+            # 12: Overlay curve and interpretation cards
+            try:
+                page.get_by_role("tab", name=re.compile("Linear C-t overlay")).click(timeout=8000)
+                page.wait_for_timeout(1200)
+            except Exception:
+                try:
+                    page.get_by_role("tab", name=re.compile("Linear C-t")).click(timeout=5000)
+                    page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+            try:
+                page.get_by_text("Beginner interpretation").first.scroll_into_view_if_needed(timeout=8000)
+                page.wait_for_timeout(600)
+            except Exception:
+                scroll_to_text(page, "Key exposure metrics")
             capture(page, "12_pk_impact_comparison_curves.png", issues, full_page=False)
 
+            # 13: Equations / IV-oral / IVIVE — navigate to fresh page, then expand all panels
             page.goto(BASE_URL, wait_until="domcontentloaded")
-            page.wait_for_timeout(1800)
-            expand_if_collapsed(page, "PK equations used")
-            expand_if_collapsed(page, "IV bolus vs oral dosing")
-            expand_if_collapsed(page, "What IVIVE would require")
+            page.wait_for_timeout(2000)
+            for panel in ["PK equations used", "IV bolus vs oral dosing", "What IVIVE would require"]:
+                expand_if_collapsed(page, panel)
+            # Scroll to the equations panel
+            try:
+                page.get_by_text("PK equations used in this educational simulator").first.scroll_into_view_if_needed(timeout=8000)
+                page.wait_for_timeout(600)
+            except Exception:
+                pass
             capture(page, "13_equations_iv_oral_ivive.png", issues)
 
-            click_tab(page, "PK Impact")
-            scroll_to_text(page, "Download markdown report")
+            # 14: Report preview + download buttons
+            navigate(page, "ADME Workbench")
+            page.wait_for_timeout(1500)
+            # Scroll to the report download section
+            try:
+                page.get_by_text("Report Download").first.scroll_into_view_if_needed(timeout=10000)
+                page.wait_for_timeout(800)
+            except Exception:
+                try:
+                    page.get_by_text("Report contents").first.scroll_into_view_if_needed(timeout=8000)
+                    page.wait_for_timeout(600)
+                except Exception:
+                    scroll_to_text(page, "Download full markdown report")
             capture(page, "14_report_download_section.png", issues, full_page=False)
 
             navigate(page, "Evidence & Limits")
+            page.wait_for_timeout(1500)
             capture(page, "15_scientific_limitations_and_reviewer_summary.png", issues)
         finally:
             browser.close()

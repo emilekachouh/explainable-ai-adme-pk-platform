@@ -1,24 +1,20 @@
 # Screenshot Index
 
-Fresh screenshots generated from the current Streamlit app after molecule-rendering and F-assumption language fixes.
+Fresh screenshots captured after batch-screening addition and descriptor-based explainability label fixes (post SHAP-overclaiming cleanup).
 
 | Screenshot | App section shown | What reviewer should look at | Recommended use |
 |---|---|---|---|
-| `01_home_dashboard.png` | Home dashboard | Overall product framing, workflow, and metric cards. | GitHub README, recruiter demo |
-| `02_how_to_use_and_app_overview.png` | How-to-use and app overview | Beginner workflow, what the platform does, and scientific grounding. | GitHub README, student onboarding |
-| `03_molecule_library_screening.png` | Molecule library screening | Search/filter controls and aspirin example library workflow. | Recruiter demo, GitHub README |
-| `04_selected_molecule_profile.png` | Selected molecule profile | Aspirin SVG rendering, canonical SMILES, teaching note, and key properties. | PI review, recruiter demo |
-| `05_descriptor_summary.png` | Descriptor summary | Descriptor table and medicinal chemistry interpretation. | PK/ADME reviewer |
-| `06_permeability_prediction.png` | Permeability prediction | Prediction card, probability, model source, and decision-support interpretation. | AI-health recruiter, PI review |
-| `07_confidence_applicability.png` | Confidence and applicability | Confidence, entropy, Tanimoto similarity, and domain-shift explanation. | Model-risk review, academic reviewer |
-| `08_explainable_ai.png` | Explainable AI | Descriptor driver table, SHAP-style interpretation, and chemical caveats. | Explainability portfolio |
-| `09_focused_molecule_comparison.png` | Focused molecule comparison | Aspirin, caffeine, ibuprofen, metformin, and propranolol ADME comparison. | LinkedIn, recruiter demo |
-| `10_multi_drug_pk_curve_comparison.png` | Multi-drug PK curve comparison | Five-drug oral PK overlay, scenario-F assumptions, and literature teaching notes. | PI review, PK teaching |
-| `11_absorption_sensitivity_simulator.png` | Absorption sensitivity simulator | Aspirin F/ka assumption controls, exposure ratios, and sensitivity interpretation. | PK/ADME reviewer |
-| `12_literature_f_vs_scenario_f.png` | Literature F vs scenario F | Aspirin literature teaching F, default scenario F, and presystemic-loss warning. | Scientific review |
-| `13_equations_iv_oral_ivive.png` | Equations, IV/oral, IVIVE | Expanded PK equations, IV/oral route explanation, and IVIVE boundary panels. | Academic review |
-| `14_report_download_section.png` | Report download section | Report-contents preview and download buttons. | GitHub README, reviewer handoff |
-| `15_scientific_limitations_and_model_credibility.png` | Scientific limitations and model credibility | Model trust, validation, limitations, and FDA/EMA-style boundaries. | PI review, scientific rigor |
-| `16_reviewer_summary.png` | Reviewer summary | AI/ML recruiter, computational pharmacology, and PI reviewer summaries. | Recruiter demo, PI review |
+| `01_home_dashboard.png` | Home dashboard | App title, workflow strip, metric cards, and scientific boundary notice. | GitHub README, recruiter demo |
+| `02_single_molecule_profile.png` | Single molecule profile | Aspirin SVG structure, canonical SMILES, key physicochemical properties, descriptor status pills. | PI review, recruiter demo |
+| `03_descriptor_based_interpretation.png` | Descriptor-based interpretation | Rule-based descriptor threshold profile (not labeled SHAP), driver analysis, chemical caveats. | Explainability portfolio, AI-health recruiter |
+| `04_batch_upload.png` | Batch screening — upload | CSV file uploader and paste-SMILES input panels with format hint card. | Pharma usability, recruiter demo |
+| `05_batch_results.png` | Batch screening — results | Summary metrics, results table, top-ranked lists, and download buttons for a 5-compound run. | Pharma usability, GitHub README |
+| `06_molecule_comparison.png` | Molecule comparison | Physicochemical, model & trust, and PK assumptions tabs across 5 compounds. | LinkedIn, recruiter demo |
+| `07_multi_drug_pk_overlay.png` | Multi-drug PK overlay | Five-drug scenario-adjusted oral PK curves visible simultaneously with distinct traces. | PI review, PK teaching |
+| `08_absorption_sensitivity_simulator.png` | Absorption sensitivity simulator | F/ka sliders, reference vs adjusted C-t overlay, exposure ratios, and educational disclaimer. | PK/ADME reviewer |
+| `09_report_download.png` | Report download section | Report preview and markdown/CSV download buttons. No 'predicted F' language. | GitHub README, reviewer handoff |
+| `10_model_credibility_limits.png` | Model credibility and limits | Model trust panel, validation mode comparison, scientific boundaries, and responsible-use notice. | PI review, scientific rigor |
 
-Scientific boundary: screenshots show Caco-2 permeability prediction and educational PK/NCA/permeability-to-PK impact simulation only. They do not show validated human PK, clinical, regulatory, safety, efficacy, or dose prediction.
+**Scientific boundary:** screenshots show Caco-2 permeability classification and educational PK/NCA simulation only. No validated human PK, clinical, regulatory, safety, efficacy, or dose prediction is shown.
+
+**Explainability label:** the interpretation panel is labeled 'Descriptor-Based Model Interpretation' — not SHAP. SHAP figures are offline-only artifacts stored under `reports/figures/shap/`.

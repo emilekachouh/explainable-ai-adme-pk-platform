@@ -1,35 +1,89 @@
-"""Capture fresh review screenshots for the Streamlit app."""
+"""Capture fresh review screenshots for the Streamlit app.
+
+Navigation structure (post batch-screening + explainability-labeling fixes):
+  Sidebar pages: Single Molecule | Batch Screening | Molecule Comparison |
+                 Multi-Drug PK | PK/NCA Simulator | Evidence & Limits
+  Single Molecule tabs: Descriptors | Permeability | Confidence |
+                        Applicability Domain | Descriptor Interpretation |
+                        Absorption Sensitivity | Limits
+"""
 
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
-from playwright.sync_api import Page, TimeoutError, expect, sync_playwright
+from playwright.sync_api import Page, TimeoutError, sync_playwright
 
 
 BASE_URL = "http://127.0.0.1:8507"
 OUTPUT_DIR = Path("docs") / "screenshots"
 
 SCREENSHOT_ROWS = [
-    ("01_home_dashboard.png", "Home dashboard", "Overall product framing, workflow, and metric cards.", "GitHub README, recruiter demo"),
-    ("02_how_to_use_and_app_overview.png", "How-to-use and app overview", "Beginner workflow, what the platform does, and scientific grounding.", "GitHub README, student onboarding"),
-    ("03_molecule_library_screening.png", "Molecule library screening", "Search/filter controls and aspirin example library workflow.", "Recruiter demo, GitHub README"),
-    ("04_selected_molecule_profile.png", "Selected molecule profile", "Aspirin SVG rendering, canonical SMILES, teaching note, and key properties.", "PI review, recruiter demo"),
-    ("05_descriptor_summary.png", "Descriptor summary", "Descriptor table and medicinal chemistry interpretation.", "PK/ADME reviewer"),
-    ("06_permeability_prediction.png", "Permeability prediction", "Prediction card, probability, model source, and decision-support interpretation.", "AI-health recruiter, PI review"),
-    ("07_confidence_applicability.png", "Confidence and applicability", "Confidence, entropy, Tanimoto similarity, and domain-shift explanation.", "Model-risk review, academic reviewer"),
-    ("08_explainable_ai.png", "Explainable AI", "Descriptor driver table, SHAP-style interpretation, and chemical caveats.", "Explainability portfolio"),
-    ("09_focused_molecule_comparison.png", "Focused molecule comparison", "Aspirin, caffeine, ibuprofen, metformin, and propranolol ADME comparison.", "LinkedIn, recruiter demo"),
-    ("10_multi_drug_pk_curve_comparison.png", "Multi-drug PK curve comparison", "Five-drug oral PK overlay, scenario-F assumptions, and literature teaching notes.", "PI review, PK teaching"),
-    ("11_absorption_sensitivity_simulator.png", "Absorption sensitivity simulator", "Aspirin F/ka assumption controls, exposure ratios, and sensitivity interpretation.", "PK/ADME reviewer"),
-    ("12_literature_f_vs_scenario_f.png", "Literature F vs scenario F", "Aspirin literature teaching F, default scenario F, and presystemic-loss warning.", "Scientific review"),
-    ("13_equations_iv_oral_ivive.png", "Equations, IV/oral, IVIVE", "Expanded PK equations, IV/oral route explanation, and IVIVE boundary panels.", "Academic review"),
-    ("14_report_download_section.png", "Report download section", "Report-contents preview and download buttons.", "GitHub README, reviewer handoff"),
-    ("15_scientific_limitations_and_model_credibility.png", "Scientific limitations and model credibility", "Model trust, validation, limitations, and FDA/EMA-style boundaries.", "PI review, scientific rigor"),
-    ("16_reviewer_summary.png", "Reviewer summary", "AI/ML recruiter, computational pharmacology, and PI reviewer summaries.", "Recruiter demo, PI review"),
+    (
+        "01_home_dashboard.png",
+        "Home dashboard",
+        "App title, workflow strip, metric cards, and scientific boundary notice.",
+        "GitHub README, recruiter demo",
+    ),
+    (
+        "02_single_molecule_profile.png",
+        "Single molecule profile",
+        "Aspirin SVG structure, canonical SMILES, key physicochemical properties, descriptor status pills.",
+        "PI review, recruiter demo",
+    ),
+    (
+        "03_descriptor_based_interpretation.png",
+        "Descriptor-based interpretation",
+        "Rule-based descriptor threshold profile (not labeled SHAP), driver analysis, chemical caveats.",
+        "Explainability portfolio, AI-health recruiter",
+    ),
+    (
+        "04_batch_upload.png",
+        "Batch screening — upload",
+        "CSV file uploader and paste-SMILES input panels with format hint card.",
+        "Pharma usability, recruiter demo",
+    ),
+    (
+        "05_batch_results.png",
+        "Batch screening — results",
+        "Summary metrics, results table, top-ranked lists, and download buttons for a 5-compound run.",
+        "Pharma usability, GitHub README",
+    ),
+    (
+        "06_molecule_comparison.png",
+        "Molecule comparison",
+        "Physicochemical, model & trust, and PK assumptions tabs across 5 compounds.",
+        "LinkedIn, recruiter demo",
+    ),
+    (
+        "07_multi_drug_pk_overlay.png",
+        "Multi-drug PK overlay",
+        "Five-drug scenario-adjusted oral PK curves visible simultaneously with distinct traces.",
+        "PI review, PK teaching",
+    ),
+    (
+        "08_absorption_sensitivity_simulator.png",
+        "Absorption sensitivity simulator",
+        "F/ka sliders, reference vs adjusted C-t overlay, exposure ratios, and educational disclaimer.",
+        "PK/ADME reviewer",
+    ),
+    (
+        "09_report_download.png",
+        "Report download section",
+        "Report preview and markdown/CSV download buttons. No 'predicted F' language.",
+        "GitHub README, reviewer handoff",
+    ),
+    (
+        "10_model_credibility_limits.png",
+        "Model credibility and limits",
+        "Model trust panel, validation mode comparison, scientific boundaries, and responsible-use notice.",
+        "PI review, scientific rigor",
+    ),
 ]
 
+# Text that must NOT appear in any screenshot
 BAD_TEXT = [
     "model artifact missing",
     "Baseline model artifact not found",
@@ -40,32 +94,40 @@ BAD_TEXT = [
     "model predicts human F",
     "app error traceback",
     "Traceback (most recent call last)",
-    "Select at least two molecules to compare.",
     "Select at least 2 molecules",
     "SHAP figure files are not present",
+    # old navigation label — must be gone
+    "ADME Workbench",
+    # old explainability label — must be gone
+    "Explainable AI\nDescriptor",
 ]
 
 
+# ---------------------------------------------------------------------------
+# Browser helpers
+# ---------------------------------------------------------------------------
+
 def wait_for_app(page: Page) -> None:
     page.goto(BASE_URL, wait_until="domcontentloaded")
-    expect(page.get_by_text("Explainable AI ADME-PK Platform").first).to_be_visible(timeout=45000)
+    # Wait for the hero h1 which is always rendered
+    page.get_by_text("Caco-2 Permeability Screening", exact=False).first.wait_for(timeout=45000)
     page.wait_for_timeout(2500)
 
 
 def capture(page: Page, filename: str, issues: list[str], full_page: bool = True) -> None:
-    text = page.locator("body").inner_text(timeout=15000)
+    page.wait_for_timeout(800)
+    try:
+        text = page.locator("body").inner_text(timeout=15000)
+    except Exception:
+        text = ""
     for bad in BAD_TEXT:
         if bad in text:
             issues.append(f"`{filename}` contains problematic text: `{bad}`")
     page.screenshot(path=str(OUTPUT_DIR / filename), full_page=full_page)
 
 
-def click_tab(page: Page, name: str) -> None:
-    page.get_by_role("tab", name=re.compile(f"^{re.escape(name)}$")).click(timeout=15000)
-    page.wait_for_timeout(1400)
-
-
 def navigate(page: Page, label: str) -> None:
+    """Click a sidebar radio button by exact label."""
     try:
         page.get_by_role("radio", name=re.compile(f"^{re.escape(label)}$")).click(timeout=8000)
     except Exception:
@@ -73,29 +135,48 @@ def navigate(page: Page, label: str) -> None:
     page.wait_for_timeout(3000)
 
 
+def click_tab(page: Page, name: str) -> None:
+    page.get_by_role("tab", name=re.compile(f"^{re.escape(name)}$")).click(timeout=15000)
+    page.wait_for_timeout(1400)
+
+
 def expand_if_collapsed(page: Page, label: str) -> None:
     try:
-        page.get_by_role("button", name=re.compile(re.escape(label))).first.click(timeout=5000)
+        btn = page.get_by_role("button", name=re.compile(re.escape(label))).first
+        btn.click(timeout=5000)
         page.wait_for_timeout(700)
     except TimeoutError:
         return
 
 
 def scroll_to_text(page: Page, text: str) -> None:
-    page.get_by_text(text, exact=False).first.scroll_into_view_if_needed(timeout=15000)
-    page.wait_for_timeout(900)
+    try:
+        page.get_by_text(text, exact=False).first.scroll_into_view_if_needed(timeout=10000)
+        page.wait_for_timeout(900)
+    except Exception:
+        pass
 
 
-def delete_old_pngs() -> None:
-    for path in OUTPUT_DIR.glob("*.png"):
-        path.unlink()
+def scroll_to_bottom(page: Page) -> None:
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    page.wait_for_timeout(1000)
 
+
+def scroll_to_top(page: Page) -> None:
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(600)
+
+
+# ---------------------------------------------------------------------------
+# README / QC writers
+# ---------------------------------------------------------------------------
 
 def write_readme() -> None:
     lines = [
         "# Screenshot Index",
         "",
-        "Fresh screenshots generated from the current Streamlit app after molecule-rendering and F-assumption language fixes.",
+        "Fresh screenshots captured after batch-screening addition and "
+        "descriptor-based explainability label fixes (post SHAP-overclaiming cleanup).",
         "",
         "| Screenshot | App section shown | What reviewer should look at | Recommended use |",
         "|---|---|---|---|",
@@ -105,7 +186,13 @@ def write_readme() -> None:
     lines.extend(
         [
             "",
-            "Scientific boundary: screenshots show Caco-2 permeability prediction and educational PK/NCA/permeability-to-PK impact simulation only. They do not show validated human PK, clinical, regulatory, safety, efficacy, or dose prediction.",
+            "**Scientific boundary:** screenshots show Caco-2 permeability classification and "
+            "educational PK/NCA simulation only. No validated human PK, clinical, regulatory, "
+            "safety, efficacy, or dose prediction is shown.",
+            "",
+            "**Explainability label:** the interpretation panel is labeled "
+            "'Descriptor-Based Model Interpretation' — not SHAP. "
+            "SHAP figures are offline-only artifacts stored under `reports/figures/shap/`.",
             "",
         ]
     )
@@ -121,6 +208,7 @@ def write_qc(issues: list[str]) -> None:
     if not issues:
         if path.exists():
             path.unlink()
+        print("QC PASS — no issues found.")
         return
 
     lines = [
@@ -133,12 +221,29 @@ def write_qc(issues: list[str]) -> None:
         lines.extend(
             [
                 f"## {issue}",
-                "- Suspected cause: the captured page contained a blocked phrase, missing section, or screenshot file was not produced.",
-                "- Suggested fix: open the affected app section, correct the visible UI/content state, then rerun `scripts/capture_streamlit_screenshots.py`.",
+                "- Suspected cause: captured page contained a blocked phrase, "
+                "missing UI section, or file was not produced.",
+                "- Fix: open the affected app section, correct the visible state, "
+                "then rerun `scripts/capture_streamlit_screenshots.py`.",
                 "",
             ]
         )
     path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"QC ISSUES ({len(issues)}):")
+    for i in issues:
+        print(f"  • {i}")
+
+
+# ---------------------------------------------------------------------------
+# Main capture sequence
+# ---------------------------------------------------------------------------
+
+def delete_old_pngs() -> None:
+    removed = 0
+    for p in OUTPUT_DIR.glob("*.png"):
+        p.unlink()
+        removed += 1
+    print(f"Deleted {removed} old PNG(s) from {OUTPUT_DIR}")
 
 
 def main() -> None:
@@ -148,73 +253,119 @@ def main() -> None:
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1500, "height": 1250}, device_scale_factor=1)
+        page = browser.new_page(
+            viewport={"width": 1500, "height": 1250},
+            device_scale_factor=1,
+        )
         try:
+            # ── 01: home dashboard ──────────────────────────────────────────
             wait_for_app(page)
+            scroll_to_top(page)
             capture(page, "01_home_dashboard.png", issues)
+            print("01 home_dashboard captured")
 
-            expand_if_collapsed(page, "How to use this app")
-            expand_if_collapsed(page, "Scientific guide")
-            capture(page, "02_how_to_use_and_app_overview.png", issues)
-
-            navigate(page, "ADME Workbench")
-            scroll_to_text(page, "Therapeutic category")
-            capture(page, "03_molecule_library_screening.png", issues, full_page=False)
-
-            scroll_to_text(page, "Aspirin")
-            capture(page, "04_selected_molecule_profile.png", issues, full_page=False)
-
-            click_tab(page, "Descriptors")
-            capture(page, "05_descriptor_summary.png", issues)
-
-            click_tab(page, "Permeability")
-            capture(page, "06_permeability_prediction.png", issues)
-
-            click_tab(page, "Confidence")
-            capture(page, "07_confidence_applicability.png", issues)
-
-            click_tab(page, "Explainable AI")
-            capture(page, "08_explainable_ai.png", issues)
-
-            navigate(page, "Molecule Comparison")
-            capture(page, "09_focused_molecule_comparison.png", issues)
-
-            navigate(page, "Multi-Drug PK")
-            expect(page.get_by_text("Multi-Drug PK Impact Comparison").first).to_be_visible(timeout=20000)
-            capture(page, "10_multi_drug_pk_curve_comparison.png", issues)
-
-            navigate(page, "ADME Workbench")
-            click_tab(page, "Absorption Sensitivity")
-            scroll_to_text(page, "Absorption Sensitivity Simulator")
-            capture(page, "11_absorption_sensitivity_simulator.png", issues, full_page=False)
-
-            scroll_to_text(page, "Literature teaching F")
-            capture(page, "12_literature_f_vs_scenario_f.png", issues, full_page=False)
-
-            page.goto(BASE_URL, wait_until="domcontentloaded")
+            # ── 02: single molecule profile ────────────────────────────────
+            navigate(page, "Single Molecule")
+            scroll_to_top(page)
+            # Aspirin should be default; wait for structure render
             page.wait_for_timeout(2000)
-            for panel in ["PK equations used", "IV bolus vs oral dosing", "What IVIVE would require"]:
-                expand_if_collapsed(page, panel)
-            scroll_to_text(page, "PK equations used in this educational simulator")
-            capture(page, "13_equations_iv_oral_ivive.png", issues)
+            capture(page, "02_single_molecule_profile.png", issues, full_page=False)
+            print("02 single_molecule_profile captured")
 
-            navigate(page, "ADME Workbench")
+            # ── 03: descriptor-based interpretation tab ────────────────────
+            click_tab(page, "Descriptor Interpretation")
+            scroll_to_top(page)
+            capture(page, "03_descriptor_based_interpretation.png", issues)
+            print("03 descriptor_based_interpretation captured")
+
+            # ── 04: batch upload (empty state) ─────────────────────────────
+            navigate(page, "Batch Screening")
+            scroll_to_top(page)
+            capture(page, "04_batch_upload.png", issues, full_page=False)
+            print("04 batch_upload captured")
+
+            # ── 05: batch results — paste 5 SMILES then capture ───────────
+            navigate(page, "Batch Screening")
+            paste_tab_btn = page.get_by_role("tab", name="Paste SMILES")
+            paste_tab_btn.click(timeout=10000)
+            page.wait_for_timeout(600)
+            textarea = page.get_by_role("textbox").filter(
+                has_text=""
+            ).first
+            # Use a more reliable locator for the paste textarea
+            try:
+                textarea = page.locator("textarea[aria-label*='SMILES']").first
+                if not textarea.is_visible(timeout=3000):
+                    raise Exception("not found")
+            except Exception:
+                textarea = page.locator("textarea").nth(0)
+            smiles_input = (
+                "Aspirin,CC(=O)Oc1ccccc1C(=O)O\n"
+                "Caffeine,Cn1cnc2c1c(=O)n(C)c(=O)n2C\n"
+                "Metformin,CN(C)C(=N)N=C(N)N\n"
+                "Ibuprofen,CC(C)Cc1ccc(C(C)C(=O)O)cc1\n"
+                "Warfarin,CC(=O)CC(c1ccccc1)c1c(O)c2ccccc2oc1=O"
+            )
+            textarea.fill(smiles_input)
+            page.wait_for_timeout(4000)
+            scroll_to_top(page)
+            capture(page, "05_batch_results.png", issues)
+            print("05 batch_results captured")
+
+            # ── 06: molecule comparison ────────────────────────────────────
+            navigate(page, "Molecule Comparison")
+            page.wait_for_timeout(2000)
+            scroll_to_top(page)
+            capture(page, "06_molecule_comparison.png", issues)
+            print("06 molecule_comparison captured")
+
+            # ── 07: multi-drug PK overlay ──────────────────────────────────
+            navigate(page, "Multi-Drug PK")
+            page.wait_for_timeout(3000)
+            scroll_to_top(page)
+            # Scroll to show the overlay charts
+            try:
+                scroll_to_text(page, "Overlay concentration-time curves")
+            except Exception:
+                pass
+            capture(page, "07_multi_drug_pk_overlay.png", issues)
+            print("07 multi_drug_pk_overlay captured")
+
+            # ── 08: absorption sensitivity simulator ───────────────────────
+            navigate(page, "Single Molecule")
+            page.wait_for_timeout(1500)
+            click_tab(page, "Absorption Sensitivity")
+            page.wait_for_timeout(1500)
+            scroll_to_top(page)
+            capture(page, "08_absorption_sensitivity_simulator.png", issues)
+            print("08 absorption_sensitivity_simulator captured")
+
+            # ── 09: report download ────────────────────────────────────────
+            click_tab(page, "Limits")
+            page.wait_for_timeout(1000)
             scroll_to_text(page, "Report Download")
-            capture(page, "14_report_download_section.png", issues, full_page=False)
+            capture(page, "09_report_download.png", issues, full_page=False)
+            print("09 report_download captured")
 
+            # ── 10: model credibility / limits ─────────────────────────────
             navigate(page, "Evidence & Limits")
+            page.wait_for_timeout(2000)
             expand_if_collapsed(page, "Why this project matters")
             expand_if_collapsed(page, "Model Trust and Engineering")
-            capture(page, "15_scientific_limitations_and_model_credibility.png", issues)
+            scroll_to_top(page)
+            capture(page, "10_model_credibility_limits.png", issues)
+            print("10 model_credibility_limits captured")
 
-            expand_if_collapsed(page, "Reviewer Summary")
-            scroll_to_text(page, "Reviewer Summary")
-            capture(page, "16_reviewer_summary.png", issues, full_page=False)
+        except Exception as exc:
+            issues.append(f"Script crashed: {exc}")
+            print(f"ERROR: {exc}", file=sys.stderr)
         finally:
             browser.close()
 
     write_readme()
     write_qc(issues)
+    print(f"\nDone — {len(SCREENSHOT_ROWS)} screenshots targeted, "
+          f"{sum(1 for f, *_ in SCREENSHOT_ROWS if (OUTPUT_DIR / f).exists())} produced.")
 
 
 if __name__ == "__main__":
